@@ -1,24 +1,15 @@
-# Ruflo runtime artifacts (keep config tracked, ignore generated/binary data)
-.claude/memory.db
-.claude/memory.db-wal
-.claude/memory.db-shm
-.claude-flow/data/
-.claude-flow/logs/
-.claude-flow/sessions/
-.claude-flow/models/
-.claude-flow/metrics/
-.claude-flow/learning/
-# Runtime daemon/swarm state (mutates constantly — keep config, not state)
-.claude-flow/daemon.pid
-.claude-flow/daemon-state.json
-.claude-flow/swarm/
-.claude-flow/security/
-*.log
+# Ruflo workspace tooling — kept local, not part of the Vouch product repo
+.claude/
+.claude-flow/
+.mcp.json
+CLAUDE.md
 
+# Ruflo runtime data
 .swarm/
 ruvector.db
 ruvector.db-wal
 ruvector.db-shm
+*.log
 
 # Node dependencies
 node_modules/
