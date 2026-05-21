@@ -2,6 +2,18 @@ import type { ReputationRecord } from "../types.js";
 
 export type ReportKind = "flag" | "vouch";
 
+/** Aggregate view of the reputation dataset (the compounding moat). */
+export interface RepoStats {
+  /** Distinct hosts ever seen. */
+  hosts: number;
+  /** Total checks performed across all hosts. */
+  checks: number;
+  /** Total flag reports. */
+  flags: number;
+  /** Total vouch reports. */
+  vouches: number;
+}
+
 /** Storage abstraction so the scoring core never depends on D1 directly. */
 export interface ReputationRepo {
   get(host: string): Promise<ReputationRecord | null>;
@@ -9,6 +21,8 @@ export interface ReputationRepo {
   recordCheck(host: string): Promise<void>;
   /** Record a community report and bump the matching counter. */
   recordReport(host: string, kind: ReportKind, reason?: string, reporter?: string): Promise<void>;
+  /** Aggregate totals across the whole dataset. */
+  stats(): Promise<RepoStats>;
 }
 
 interface Row {
@@ -30,6 +44,19 @@ export class D1ReputationRepo implements ReputationRepo {
       .bind(host)
       .first<Row>();
     return row ? toRecord(row) : null;
+  }
+
+  async stats(): Promise<RepoStats> {
+    const row = await this.db
+      .prepare(
+        `SELECT COUNT(*) AS hosts,
+                COALESCE(SUM(checks), 0)  AS checks,
+                COALESCE(SUM(flags), 0)   AS flags,
+                COALESCE(SUM(vouches), 0) AS vouches
+         FROM reputation`,
+      )
+      .first<RepoStats>();
+    return row ?? { hosts: 0, checks: 0, flags: 0, vouches: 0 };
   }
 
   async recordCheck(host: string): Promise<void> {
@@ -90,6 +117,18 @@ export class InMemoryReputationRepo implements ReputationRepo {
     const rec = this.upsert(host);
     if (kind === "flag") rec.flags += 1;
     else rec.vouches += 1;
+  }
+
+  async stats(): Promise<RepoStats> {
+    let checks = 0;
+    let flags = 0;
+    let vouches = 0;
+    for (const r of this.store.values()) {
+      checks += r.checks;
+      flags += r.flags;
+      vouches += r.vouches;
+    }
+    return { hosts: this.store.size, checks, flags, vouches };
   }
 
   private upsert(host: string): ReputationRecord {

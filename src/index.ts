@@ -84,6 +84,7 @@ app.get("/", (c) => {
     endpoints: {
       "POST /v1/check": "Assess a counterparty. Paid via x402.",
       "POST /v1/report": "Report a host as flag|vouch. Free.",
+      "GET /v1/stats": "Aggregate reputation totals. Free.",
       "GET /health": "Liveness.",
     },
   });
@@ -107,6 +108,12 @@ app.get("/.well-known/x402", (c) => c.json(buildX402Descriptor(discoveryConfig(c
 
 // MCP-style tool manifest (static descriptor, no MCP transport).
 app.get("/mcp/tools", (c) => c.json(buildMcpToolManifest(discoveryConfig(c))));
+
+// Aggregate reputation stats (free) — surfaces the compounding dataset.
+app.get("/v1/stats", async (c) => {
+  const stats = await new D1ReputationRepo(c.env.DB).stats();
+  return c.json(stats);
+});
 
 // Input bounds (validated at the HTTP boundary; both endpoints are public).
 const MAX_TARGET = 255;

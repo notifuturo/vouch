@@ -55,6 +55,7 @@ overall score so one strong red flag can't be averaged away.
 |---------------|------|-------------|
 | `POST /v1/check` | x402 (USDC) | Assess a counterparty → `{ score, risk, reasons }` |
 | `POST /v1/report` | free | Submit a `flag` or `vouch` for a host |
+| `GET /v1/stats` | free | Aggregate reputation totals (hosts, checks, flags, vouches) |
 | `GET /health` | free | Liveness |
 | `GET /` | free | Service info |
 
