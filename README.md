@@ -1,5 +1,11 @@
 # Vouch
 
+[![CI](https://github.com/notifuturo/vouch/actions/workflows/ci.yml/badge.svg)](https://github.com/notifuturo/vouch/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](./LICENSE)
+[![x402](https://img.shields.io/badge/pay-x402%20·%20USDC-5eead4.svg)](https://x402.org)
+[![Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020.svg)](https://workers.cloudflare.com)
+[![Live](https://img.shields.io/badge/demo-vouch.futuronoti.workers.dev-2563eb.svg)](https://vouch.futuronoti.workers.dev)
+
 **A per-call payment trust & reputation API for AI agents — monetized over [x402](https://x402.org).**
 
 When an autonomous agent is about to pay a merchant, API, or counterparty, it

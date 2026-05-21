@@ -52,6 +52,26 @@ Agnic does **not** crawl us; listing is manual at the dashboard.
    ```
 6. Verify Vouch appears in Service Discovery (https://app.agnic.ai/discover).
 
+**Copy-paste values for the registration form:**
+```
+Name:        Vouch
+Endpoint:    https://vouch.futuronoti.workers.dev/v1/check
+Method:      POST
+Price:       0.001 USDC per call   (raise later as you like)
+Category:    Trust / Verification / Security
+Description: x402-monetized payment-trust API. Given a counterparty (URL/host),
+             returns an explainable 0-100 trust score, a risk band, and reasons —
+             so an agent can decide whether it's safe to pay.
+Input:       { "target": "https://some-merchant.com" }
+Output:      { "score": 87, "risk": "low", "reasons": ["..."] }
+Discovery:   https://vouch.futuronoti.workers.dev/.well-known/x402
+```
+
+**Then activate the merchant headers in one step** (no code/redeploy fuss):
+```
+scripts/agnic-list.sh <MERCHANT_ID> <PAYOUT_WALLET_0x...> <FEE_PERCENT>
+```
+
 Notes: Agnic takes a **flat 5% commission**; KYC/payout cadence are behind the dashboard
 login — confirm there or via the contact form at https://www.agnic.ai/contact
 (topic "Global Partnership").
