@@ -94,7 +94,7 @@ export function usdcBaseUnits(decimalStr: string): string {
  * JSON Schema describing the `/v1/check` request body. Used both in the x402
  * `outputSchema.input.body` and as the MCP tool `inputSchema`.
  */
-const CHECK_INPUT_SCHEMA = {
+export const CHECK_INPUT_SCHEMA = {
   type: "object",
   properties: {
     target: {
@@ -107,7 +107,7 @@ const CHECK_INPUT_SCHEMA = {
 } as const;
 
 /** JSON Schema describing the `/v1/check` response body (the trust verdict). */
-const CHECK_OUTPUT_SCHEMA = {
+export const CHECK_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
     score: {
@@ -131,7 +131,7 @@ const CHECK_OUTPUT_SCHEMA = {
 } as const;
 
 /** A concrete, representative `/v1/check` response for registry previews. */
-const CHECK_OUTPUT_EXAMPLE = {
+export const CHECK_OUTPUT_EXAMPLE = {
   score: 87,
   risk: "low",
   reasons: ["Host uses HTTPS", "Not on known threat feeds"],

@@ -1,8 +1,12 @@
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
+import { withBazaar, declareDiscoveryExtension } from "@x402/extensions";
 import { createCdpFacilitatorConfig } from "./cdpAuth.js";
+import { CHECK_INPUT_SCHEMA, CHECK_OUTPUT_SCHEMA, CHECK_OUTPUT_EXAMPLE } from "./discovery.js";
 import type { MiddlewareHandler } from "hono";
+
+const BASE_MAINNET = "eip155:8453";
 
 /** Map a human network name to its CAIP-2 chain id. */
 const NETWORKS: Record<string, `${string}:${string}`> = {
@@ -42,24 +46,39 @@ export function createPaymentGate(cfg: PaymentConfig): MiddlewareHandler {
       ? createCdpFacilitatorConfig(cfg.cdpApiKeyId, cfg.cdpApiKeySecret)
       : { url: cfg.facilitatorUrl };
 
-  const facilitator = new HTTPFacilitatorClient(facilitatorConfig);
+  // Bazaar discovery is enabled ONLY on mainnet: the wrapper sits on the
+  // facilitator's verify/settle/getSupported path, so we keep the testnet gate's
+  // code path untouched. On mainnet, withBazaar + the route discovery extension
+  // make Vouch auto-index into the x402 Bazaar (-> Agentic.Market + AWS Bedrock)
+  // the first time a payment settles.
+  const onMainnet = caip2 === BASE_MAINNET;
+
+  const baseClient = new HTTPFacilitatorClient(facilitatorConfig);
+  const facilitator = onMainnet ? withBazaar(baseClient) : baseClient;
   const server = new x402ResourceServer(facilitator).register(caip2, new ExactEvmScheme());
 
-  return paymentMiddleware(
-    {
-      "POST /v1/check": {
-        accepts: [
-          {
-            scheme: "exact",
-            price: `$${cfg.priceUsdc}`,
-            network: caip2,
-            payTo: cfg.payTo,
-          },
-        ],
-        description: "Vouch payment trust check — risk score for a counterparty.",
-        mimeType: "application/json",
+  const route: Record<string, unknown> = {
+    accepts: [
+      {
+        scheme: "exact",
+        price: `$${cfg.priceUsdc}`,
+        network: caip2,
+        payTo: cfg.payTo,
       },
-    },
-    server,
-  );
+    ],
+    description: "Vouch payment trust check — risk score for a counterparty.",
+    mimeType: "application/json",
+  };
+  if (onMainnet) {
+    route.extensions = declareDiscoveryExtension({
+      bodyType: "json",
+      inputSchema: CHECK_INPUT_SCHEMA as unknown as Record<string, unknown>,
+      output: {
+        schema: CHECK_OUTPUT_SCHEMA as unknown as Record<string, unknown>,
+        example: CHECK_OUTPUT_EXAMPLE,
+      },
+    });
+  }
+
+  return paymentMiddleware({ "POST /v1/check": route } as never, server);
 }
