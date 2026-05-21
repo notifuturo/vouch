@@ -56,10 +56,20 @@ describe("buildX402Descriptor (canonical x402 v2)", () => {
     expect(accept.scheme).toBe("exact");
     expect(accept.network).toBe("eip155:84532");
     expect(accept.maxAmountRequired).toBe("1000"); // 0.001 USDC -> 1000 base units
-    expect(accept.payTo).toBe("");
+    expect(accept.payTo).toBe(""); // empty when no payTo configured
     expect(accept.maxTimeoutSeconds).toBe(300);
     expect(accept.mimeType).toBe("application/json");
     expect(accept.resource).toBe("https://vouch.example.com/v1/check");
+  });
+
+  it("advertises the configured payTo address in the descriptor and manifest", () => {
+    const withPayTo = { ...cfg, payTo: "0x84877c232FB62CBf2028A97828507428cf82dC1a" };
+    expect(buildX402Descriptor(withPayTo).resources[0].accepts[0].payTo).toBe(
+      "0x84877c232FB62CBf2028A97828507428cf82dC1a",
+    );
+    expect(buildMcpToolManifest(withPayTo).tools[0].x402.payTo).toBe(
+      "0x84877c232FB62CBf2028A97828507428cf82dC1a",
+    );
   });
 
   it("references the sepolia USDC asset address and EIP-712 name", () => {

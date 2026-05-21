@@ -99,6 +99,7 @@ const discoveryConfig = (c: { env: Env; req: { url: string } }) => ({
   network: c.env.X402_NETWORK,
   priceUsdc: c.env.PRICE_CHECK_USDC,
   baseUrl: new URL(c.req.url).origin,
+  payTo: c.env.PAY_TO_ADDRESS,
 });
 
 // x402 "bazaar"-style resource list.

@@ -52,6 +52,8 @@ export interface DiscoveryConfig {
   priceUsdc: string;
   /** Absolute base URL of this deployment, e.g. "https://vouch.example.com". */
   baseUrl: string;
+  /** Address that receives x402 payments (advertised so agents know where funds go). */
+  payTo?: string;
 }
 
 /** Resolve a network name to its CAIP-2 id, or `null` if unknown. */
@@ -167,7 +169,7 @@ export function buildX402Descriptor(cfg: DiscoveryConfig) {
             network,
             maxAmountRequired: usdcBaseUnits(cfg.priceUsdc),
             asset: usdc?.address ?? null,
-            payTo: "",
+            payTo: cfg.payTo ?? "",
             maxTimeoutSeconds: 300,
             resource,
             description: CHECK_DESCRIPTION,
@@ -227,6 +229,7 @@ export function buildMcpToolManifest(cfg: DiscoveryConfig) {
           maxAmountRequired: usdcBaseUnits(cfg.priceUsdc),
           network,
           asset: usdc?.address ?? null,
+          payTo: cfg.payTo ?? "",
         },
       },
     ],
