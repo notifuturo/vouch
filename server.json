@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.notifuturo/vouch",
+  "description": "Payment-trust API for AI agents — score a counterparty's risk (0-100) before paying. Free score + risk band via MCP; explainable reasons via the paid x402 endpoint.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/notifuturo/vouch",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://vouch.futuronoti.workers.dev/mcp"
+    }
+  ]
+}

@@ -111,6 +111,22 @@ To land in the **Bazaar + Agentic.Market** (where agents actually shop) we must 
 
 ---
 
+## 4b. Official MCP Registry (real MCP server is now live)
+
+Vouch exposes a real MCP Streamable-HTTP server at `https://vouch.futuronoti.workers.dev/mcp`
+(free tools `vouch_score`, `vouch_report`). `server.json` is committed at the repo
+root. Publishing fans out automatically to PulseMCP, Glama, and others.
+
+Human-gated (needs your GitHub auth as `notifuturo`):
+```bash
+# one-time: install the publisher CLI
+npm i -g @modelcontextprotocol/publisher    # or download from the registry repo releases
+mcp-publisher login github                   # auth the io.github.notifuturo/* namespace
+mcp-publisher publish                        # reads ./server.json — self-serve, no review
+```
+Then submit manually (cheap, optional) to **Smithery** (smithery.ai), **mcp.so**,
+and **MCPay** (mcpay.tech — accepts our paid HTTP endpoint too).
+
 ## 5. Secondary / future
 
 - **PayAI facilitator** directory (`facilitator.payai.network/discovery/resources`) — settle via PayAI to appear.
