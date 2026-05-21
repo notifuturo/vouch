@@ -10,7 +10,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "vouch"
-database_id = "REPLACE_AFTER_wrangler_d1_create"
+database_id = "9f09e97e-4174-461f-87de-5b0ca42a1174"
 
 [vars]
 # x402 settings. Testnet first ($0). Switch NETWORK to "base" for mainnet.
@@ -20,7 +20,9 @@ PRICE_CHECK_USDC = "0.001"
 # Free threat feed for the `threat_feed` signal. URLhaus host list: plain,
 # newline-delimited bare hostnames with '#' comment lines. Cached + fails open.
 THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
-# PAY_TO_ADDRESS is set as a secret/var per-environment (see .dev.vars.example).
+# PAY_TO_ADDRESS receives x402 payments. This is a PUBLIC address (safe to
+# commit); the matching private key is never stored here. Testnet wallet for now.
+PAY_TO_ADDRESS = "0x84877c232FB62CBf2028A97828507428cf82dC1a"
 
 # Rate limiter for the free POST /v1/report endpoint (anti-poisoning abuse).
 # 10 reports per 60s per client IP. No-ops gracefully if unbound (local/tests).
