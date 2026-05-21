@@ -40,3 +40,13 @@ namespace_id = "1001"
   [ratelimits.simple]
   limit = 10
   period = 60
+
+# Rate limiter for the free POST /v1/score tier (more generous than report).
+# 60 free scores per 60s per client IP. Paid /v1/check is unthrottled.
+[[ratelimits]]
+name = "SCORE_LIMITER"
+namespace_id = "1002"
+
+  [ratelimits.simple]
+  limit = 60
+  period = 60

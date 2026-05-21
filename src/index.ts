@@ -6,7 +6,7 @@ import { D1ReputationRepo } from "./db/repo.js";
 import { createDenylist } from "./db/denylist.js";
 import { createPaymentGate } from "./payments.js";
 import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
-import { reportLimiter, clientKey, type Limiter } from "./ratelimit.js";
+import { resolveLimiter, clientKey, type Limiter } from "./ratelimit.js";
 import { landingPage } from "./landing.js";
 
 export interface Env {
@@ -19,6 +19,8 @@ export interface Env {
   THREAT_FEED_URL?: string;
   /** Cloudflare Rate Limiting binding for /v1/report (optional locally). */
   REPORT_LIMITER?: Limiter;
+  /** Cloudflare Rate Limiting binding for the free /v1/score tier (optional locally). */
+  SCORE_LIMITER?: Limiter;
   /** Agnic merchant id (from app.agnic.ai/monetize). Optional until registered. */
   AGNIC_MERCHANT_ID?: string;
   /** Agnic USDC payout wallet address. Optional until registered. */
@@ -101,7 +103,8 @@ app.get("/", (c) => {
     name: "Vouch",
     description: "Per-call payment trust & reputation API for AI agents (x402-monetized).",
     endpoints: {
-      "POST /v1/check": "Assess a counterparty. Paid via x402.",
+      "POST /v1/check": "Full verdict (score + risk + reasons). Paid via x402.",
+      "POST /v1/score": "Score + risk only. Free (rate-limited).",
       "POST /v1/report": "Report a host as flag|vouch. Free.",
       "GET /v1/stats": "Aggregate reputation totals. Free.",
       "GET /health": "Liveness.",
@@ -173,10 +176,43 @@ app.post("/v1/check", async (c) => {
   return c.json(result);
 });
 
+// --- Free tier: score only (no reasons) ---
+// Top-of-funnel wedge: returns just the number + band, like competitors' free
+// basic tier. The explainable `reasons` + `signals` stay paid (/v1/check) —
+// you pay for the *why*. Every free check still records and feeds the moat.
+app.post("/v1/score", async (c) => {
+  const limiter = resolveLimiter(c.env.SCORE_LIMITER);
+  const { success } = await limiter.limit({ key: clientKey(c.req.header("cf-connecting-ip")) });
+  if (!success) {
+    return c.json({ error: "Rate limit exceeded on the free tier. Use POST /v1/check (paid) for higher volume." }, 429);
+  }
+
+  const body = await c.req.json<{ target?: unknown }>().catch((): { target?: unknown } => ({}));
+  if (typeof body.target !== "string") {
+    return c.json({ error: "'target' must be a string." }, 400);
+  }
+  const target = body.target.trim();
+  if (!target || target.length > MAX_TARGET || !parseTarget(target).host) {
+    return c.json({ error: `'target' must be a valid host (1-${MAX_TARGET} chars).` }, 400);
+  }
+
+  denylist ??= createDenylist(c.env.THREAT_FEED_URL);
+  const repo = new D1ReputationRepo(c.env.DB);
+  const result = await assess(target, {
+    isDenied: denylist,
+    getReputation: (host) => repo.get(host),
+  });
+  if (result.host) {
+    c.executionCtx.waitUntil(repo.recordCheck(result.host));
+  }
+  // Free tier returns score + risk only; reasons/signals are the paid upgrade.
+  return c.json({ target: result.target, host: result.host, score: result.score, risk: result.risk });
+});
+
 // --- Free: community report ---
 app.post("/v1/report", async (c) => {
   // Throttle per client IP to blunt reputation-poisoning spam.
-  const limiter = reportLimiter(c.env.REPORT_LIMITER);
+  const limiter = resolveLimiter(c.env.REPORT_LIMITER);
   const { success } = await limiter.limit({ key: clientKey(c.req.header("cf-connecting-ip")) });
   if (!success) {
     return c.json({ error: "Rate limit exceeded. Slow down." }, 429);

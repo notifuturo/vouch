@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import app from "../src/index.js";
-import { reportLimiter, clientKey } from "../src/ratelimit.js";
+import { resolveLimiter, clientKey } from "../src/ratelimit.js";
 
-describe("reportLimiter helper", () => {
+describe("resolveLimiter helper", () => {
   it("falls back to allow-all when no binding is bound", async () => {
-    const { success } = await reportLimiter(undefined).limit({ key: "x" });
+    const { success } = await resolveLimiter(undefined).limit({ key: "x" });
     expect(success).toBe(true);
   });
   it("derives a stable client key with anon fallback", () => {

@@ -107,6 +107,7 @@ export function landingPage(cfg: LandingConfig): string {
     <table>
       <tr><th>Method &amp; path</th><th>Cost</th><th>Description</th></tr>
       <tr><td>POST /v1/check</td><td><span class="pill">x402 · $${price}</span></td><td>Assess a counterparty → score, risk, reasons</td></tr>
+      <tr><td>POST /v1/score</td><td><span class="pill free">free</span></td><td>Score + risk only — pay /v1/check for the reasons</td></tr>
       <tr><td>POST /v1/report</td><td><span class="pill free">free</span></td><td>Flag or vouch for a host (rate-limited)</td></tr>
       <tr><td>GET /v1/stats</td><td><span class="pill free">free</span></td><td>Aggregate reputation totals</td></tr>
       <tr><td>GET /.well-known/x402</td><td><span class="pill free">free</span></td><td>Machine-readable resource descriptor</td></tr>

@@ -53,7 +53,8 @@ overall score so one strong red flag can't be averaged away.
 
 | Method & path | Cost | Description |
 |---------------|------|-------------|
-| `POST /v1/check` | x402 (USDC) | Assess a counterparty → `{ score, risk, reasons }` |
+| `POST /v1/check` | x402 (USDC) | Full verdict → `{ score, risk, reasons, signals }` |
+| `POST /v1/score` | free (rate-limited) | Score + risk only → `{ score, risk }`. Pay `/v1/check` for the *reasons* |
 | `POST /v1/report` | free | Submit a `flag` or `vouch` for a host |
 | `GET /v1/stats` | free | Aggregate reputation totals (hosts, checks, flags, vouches) |
 | `GET /health` | free | Liveness |

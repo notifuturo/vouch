@@ -100,11 +100,11 @@ card-network integration. Win by being *natively agent-discoverable* (Bazaar/MCP
 
 ---
 
-## Three strategic decisions to make
+## Three strategic decisions — RESOLVED
 
-1. **Differentiation vs DJD Agent Score** (near-identical, free basic). → Lead with explainable *reasons* + a drop-in SDK + latency SLA.
-2. **Free tier?** → Likely yes (a bare pass/fail or score) to counter DJD's free basic; monetize the full reasons/breakdown.
-3. **Standards posture** → align with/extend KYAPay or t54's emerging risk standard, vs. staying fully proprietary.
+1. **Differentiation vs DJD Agent Score** → ✅ **Lead with explainable *reasons*** (already our output) + a drop-in SDK + speed. The paid `/v1/check` returns `reasons + signals`; that's the wedge.
+2. **Free tier?** → ✅ **Shipped.** `POST /v1/score` returns `{score, risk}` for free (rate-limited 60/60s); the explainable `reasons/signals` are the paid upgrade (`/v1/check`). Every free call still records and feeds the reputation moat.
+3. **Standards posture** → ✅ **Stay open** (MIT, open x402/MCP); defer a KYAPay adapter to an actual Skyfire partnership conversation rather than building speculatively.
 
 ---
 

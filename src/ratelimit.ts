@@ -14,7 +14,7 @@ const ALLOW_ALL: Limiter = {
 };
 
 /** Return the bound limiter, or a permissive fallback when none is configured. */
-export function reportLimiter(binding: Limiter | undefined): Limiter {
+export function resolveLimiter(binding: Limiter | undefined): Limiter {
   return binding ?? ALLOW_ALL;
 }
 
