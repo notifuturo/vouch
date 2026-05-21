@@ -1,7 +1,7 @@
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { createFacilitatorConfig } from "@coinbase/x402";
+import { createCdpFacilitatorConfig } from "./cdpAuth.js";
 import type { MiddlewareHandler } from "hono";
 
 /** Map a human network name to its CAIP-2 chain id. */
@@ -39,7 +39,7 @@ export function createPaymentGate(cfg: PaymentConfig): MiddlewareHandler {
 
   const facilitatorConfig =
     cfg.cdpApiKeyId && cfg.cdpApiKeySecret
-      ? createFacilitatorConfig(cfg.cdpApiKeyId, cfg.cdpApiKeySecret)
+      ? createCdpFacilitatorConfig(cfg.cdpApiKeyId, cfg.cdpApiKeySecret)
       : { url: cfg.facilitatorUrl };
 
   const facilitator = new HTTPFacilitatorClient(facilitatorConfig);
