@@ -79,6 +79,12 @@ To land in the **Bazaar + Agentic.Market** (where agents actually shop) we must 
   settle to confirm cataloging.
 - Implication: this conflicts with the strict-$0 stance (gas + a funded wallet + real USDC).
   **This is a founder decision, not an autonomous change.** Everything else above works at $0.
+- **Bonus — also fixes a reliability issue:** on testnet, `POST /v1/check` intermittently
+  hangs (~35s) on a *cold* Cloudflare isolate because the x402 middleware must call the
+  public testnet facilitator's `/supported` to build the 402, and `x402.org/facilitator`
+  is flaky (warm isolates return 402 in ~1s; `/health` is always fast). A reliable
+  bazaar-aware facilitator (CDP) removes this. Not fixable at our layer (disabling the
+  startup sync makes the 402 build fail with 500 — the supported list is genuinely required).
 
 ---
 
