@@ -7,6 +7,7 @@ import { createDenylist } from "./db/denylist.js";
 import { createPaymentGate } from "./payments.js";
 import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
 import { reportLimiter, clientKey, type Limiter } from "./ratelimit.js";
+import { landingPage } from "./landing.js";
 
 export interface Env {
   DB: D1Database;
@@ -42,8 +43,18 @@ app.use("*", (c, next) => {
 // Shared per-isolate denylist (hydrated lazily, cached with TTL).
 let denylist: ReturnType<typeof createDenylist> | null = null;
 
-app.get("/", (c) =>
-  c.json({
+app.get("/", (c) => {
+  // Browsers get the landing page; API clients get JSON.
+  if ((c.req.header("accept") ?? "").includes("text/html")) {
+    return c.html(
+      landingPage({
+        priceUsdc: c.env.PRICE_CHECK_USDC,
+        network: c.env.X402_NETWORK,
+        baseUrl: new URL(c.req.url).origin,
+      }),
+    );
+  }
+  return c.json({
     name: "Vouch",
     description: "Per-call payment trust & reputation API for AI agents (x402-monetized).",
     endpoints: {
@@ -51,7 +62,8 @@ app.get("/", (c) =>
       "POST /v1/report": "Report a host as flag|vouch. Free.",
       "GET /health": "Liveness.",
     },
-  }),
+  });
+}
 );
 
 app.get("/health", (c) => c.json({ ok: true }));
