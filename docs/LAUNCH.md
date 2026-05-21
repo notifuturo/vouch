@@ -33,7 +33,10 @@ Ready-to-paste entry:
 
 Agnic does **not** crawl us; listing is manual at the dashboard.
 
-1. Create account at **https://app.agnic.ai** (email sign-in; auto-provisions a wallet).
+1. Create account at **https://app.agnic.ai** using **futuronoti@gmail.com** (the
+   project's single canonical identity — same as Cloudflare/GitHub/CDP). Do *not*
+   use a different email here; keeping one identity avoids the fragmentation pain.
+   Email sign-in auto-provisions a wallet.
 2. Connect/note a **USDC payout wallet** address.
 3. Go to **https://app.agnic.ai/monetize** → "Register your API".
 4. Submit:
