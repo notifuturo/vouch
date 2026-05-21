@@ -33,31 +33,13 @@ export interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
-// --- x402 payment gate ---
-// Built lazily (env is only available per-request) but INVOKED INLINE in the
-// current request chain. We must not call app.use() mid-request: Hono freezes
-// the matched handler chain before middleware runs, so a route added mid-flight
-// would only gate *future* requests — leaving the first request per isolate
-// unpaid. Invoking the gate directly closes that bypass.
-let gate: MiddlewareHandler | null = null;
-app.use("*", (c, next) => {
-  gate ??= createPaymentGate({
-    network: c.env.X402_NETWORK,
-    facilitatorUrl: c.env.X402_FACILITATOR_URL,
-    payTo: c.env.PAY_TO_ADDRESS,
-    priceUsdc: c.env.PRICE_CHECK_USDC,
-    cdpApiKeyId: c.env.CDP_API_KEY_ID,
-    cdpApiKeySecret: c.env.CDP_API_KEY_SECRET,
-  });
-  return gate(c, next);
-});
-
-// --- CORS + Agnic merchant headers (runs after the gate) ---
-// CORS is done with MANUAL headers, NOT hono/cors: hono/cors wrapping the
-// x402-gated POST /v1/check hangs the request. Manual header-setting after
-// next() is safe. OPTIONS preflight is short-circuited here (the gate passes
-// OPTIONS through untouched, since it only matches POST). Agnic merchant
-// headers are emitted only when their env vars are set.
+// --- CORS + Agnic merchant headers (runs BEFORE the gate, wraps everything) ---
+// Manual headers, NOT hono/cors: hono/cors wrapping the x402-gated POST hangs
+// the request. This runs first (outermost) so it sets response headers on the
+// way out even when the gate short-circuits with a 402 — otherwise the 402
+// would lack Access-Control-Allow-Origin and browser agents couldn't read it.
+// OPTIONS preflight is answered here directly (204). Agnic merchant headers are
+// emitted only when their env vars are set.
 const CORS_EXPOSE = "PAYMENT-REQUIRED, X-PAYMENT-RESPONSE, PAYMENT-RESPONSE, WWW-Authenticate";
 app.use("*", async (c, next) => {
   if (c.req.method === "OPTIONS") {
@@ -80,6 +62,25 @@ app.use("*", async (c, next) => {
     if (value) c.header(name, value);
   }
   return;
+});
+
+// --- x402 payment gate ---
+// Built lazily (env is only available per-request) but INVOKED INLINE in the
+// current request chain. We must not call app.use() mid-request: Hono freezes
+// the matched handler chain before middleware runs, so a route added mid-flight
+// would only gate *future* requests — leaving the first request per isolate
+// unpaid. Invoking the gate directly closes that bypass.
+let gate: MiddlewareHandler | null = null;
+app.use("*", (c, next) => {
+  gate ??= createPaymentGate({
+    network: c.env.X402_NETWORK,
+    facilitatorUrl: c.env.X402_FACILITATOR_URL,
+    payTo: c.env.PAY_TO_ADDRESS,
+    priceUsdc: c.env.PRICE_CHECK_USDC,
+    cdpApiKeyId: c.env.CDP_API_KEY_ID,
+    cdpApiKeySecret: c.env.CDP_API_KEY_SECRET,
+  });
+  return gate(c, next);
 });
 
 // Shared per-isolate denylist (hydrated lazily, cached with TTL).
