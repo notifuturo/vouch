@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import type { MiddlewareHandler } from "hono";
 import { assess } from "./scoring/assess.js";
 import { parseTarget } from "./scoring/target.js";
@@ -34,27 +33,6 @@ export interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
-// --- CORS (must run BEFORE the payment gate) ---
-// Lets browser-hosted agents preflight and call the API cross-origin. Runs
-// first so OPTIONS preflight short-circuits with 204 instead of falling through
-// to a 404 (the x402 gate only matches POST /v1/check). Allows/exposes the
-// x402 payment headers so a browser buyer can complete the pay/retry flow.
-app.use(
-  "*",
-  cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-PAYMENT", "PAYMENT"],
-    exposeHeaders: [
-      "PAYMENT-REQUIRED",
-      "X-PAYMENT-RESPONSE",
-      "PAYMENT-RESPONSE",
-      "WWW-Authenticate",
-    ],
-    maxAge: 86400,
-  }),
-);
-
 // --- x402 payment gate ---
 // Built lazily (env is only available per-request) but INVOKED INLINE in the
 // current request chain. We must not call app.use() mid-request: Hono freezes
@@ -74,22 +52,34 @@ app.use("*", (c, next) => {
   return gate(c, next);
 });
 
-// --- Agnic merchant headers (decorative, runs after the gate) ---
-// Identifies this endpoint to the Agnic monetization registry. Config-driven
-// and OPTIONAL: each header is emitted only when its env var is set and
-// non-empty, so nothing breaks before the merchant account exists and it's
-// instantly active once the vars are filled in. Set AFTER next() so it only
-// decorates the final response (including the gate's 402).
+// --- CORS + Agnic merchant headers (runs after the gate) ---
+// CORS is done with MANUAL headers, NOT hono/cors: hono/cors wrapping the
+// x402-gated POST /v1/check hangs the request. Manual header-setting after
+// next() is safe. OPTIONS preflight is short-circuited here (the gate passes
+// OPTIONS through untouched, since it only matches POST). Agnic merchant
+// headers are emitted only when their env vars are set.
+const CORS_EXPOSE = "PAYMENT-REQUIRED, X-PAYMENT-RESPONSE, PAYMENT-RESPONSE, WWW-Authenticate";
 app.use("*", async (c, next) => {
+  if (c.req.method === "OPTIONS") {
+    return c.body(null, 204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-PAYMENT, PAYMENT",
+      "Access-Control-Max-Age": "86400",
+    });
+  }
   await next();
-  const headers: Record<string, string | undefined> = {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Expose-Headers", CORS_EXPOSE);
+  const merchant: Record<string, string | undefined> = {
     "X-Merchant-Id": c.env.AGNIC_MERCHANT_ID,
     "X-Merchant-Wallet": c.env.AGNIC_MERCHANT_WALLET,
     "X-Merchant-Fee-Percent": c.env.AGNIC_FEE_PERCENT,
   };
-  for (const [name, value] of Object.entries(headers)) {
+  for (const [name, value] of Object.entries(merchant)) {
     if (value) c.header(name, value);
   }
+  return;
 });
 
 // Shared per-isolate denylist (hydrated lazily, cached with TTL).
