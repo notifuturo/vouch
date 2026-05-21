@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { MiddlewareHandler } from "hono";
 import { assess } from "./scoring/assess.js";
 import { parseTarget } from "./scoring/target.js";
@@ -32,6 +33,27 @@ export interface Env {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+// --- CORS (must run BEFORE the payment gate) ---
+// Lets browser-hosted agents preflight and call the API cross-origin. Runs
+// first so OPTIONS preflight short-circuits with 204 instead of falling through
+// to a 404 (the x402 gate only matches POST /v1/check). Allows/exposes the
+// x402 payment headers so a browser buyer can complete the pay/retry flow.
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization", "X-PAYMENT", "PAYMENT"],
+    exposeHeaders: [
+      "PAYMENT-REQUIRED",
+      "X-PAYMENT-RESPONSE",
+      "PAYMENT-RESPONSE",
+      "WWW-Authenticate",
+    ],
+    maxAge: 86400,
+  }),
+);
 
 // --- x402 payment gate ---
 // Built lazily (env is only available per-request) but INVOKED INLINE in the

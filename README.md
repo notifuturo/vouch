@@ -57,7 +57,26 @@ overall score so one strong red flag can't be averaged away.
 | `POST /v1/report` | free | Submit a `flag` or `vouch` for a host |
 | `GET /v1/stats` | free | Aggregate reputation totals (hosts, checks, flags, vouches) |
 | `GET /health` | free | Liveness |
-| `GET /` | free | Service info |
+| `GET /` | free | Service info (HTML landing for browsers) |
+
+CORS is open (`*`) and the x402 payment headers are exposed, so browser-hosted
+agents can preflight and complete the pay/retry flow.
+
+### Reading `/v1/report` (abuse model)
+
+`POST /v1/report` is **free and unauthenticated by design** — anyone can submit a
+`flag` or `vouch` for a host, so the raw `flags`/`vouches` counts are *community
+signals, not ground truth*. Abuse is contained by:
+
+- **Rate limiting** — 10 reports per 60s per client IP (Cloudflare Rate Limiting).
+- **Poisoning resistance in scoring** — community `reputation` is a *non-authoritative*
+  signal: it can lower a score but **cannot, on its own, force a `critical` verdict**.
+  Only objective signals (threat feeds, transport) can hard-cap the score. So a burst
+  of anonymous flags can't unilaterally brand a legitimate counterparty as unsafe.
+- **Bounded input** — `target`/`reason`/`reporter` are length-capped before storage.
+
+Treat `/v1/stats` and report counts as a crowd-sourced prior that *informs* the paid
+verdict, not as an authoritative blocklist.
 
 ## Stack ($0 to run)
 
