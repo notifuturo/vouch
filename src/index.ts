@@ -6,6 +6,7 @@ import { D1ReputationRepo } from "./db/repo.js";
 import { createDenylist } from "./db/denylist.js";
 import { createPaymentGate } from "./payments.js";
 import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
+import { reportLimiter, clientKey, type Limiter } from "./ratelimit.js";
 
 export interface Env {
   DB: D1Database;
@@ -15,6 +16,8 @@ export interface Env {
   PAY_TO_ADDRESS: string;
   /** Optional free threat-feed URL (newline-delimited hosts). */
   THREAT_FEED_URL?: string;
+  /** Cloudflare Rate Limiting binding for /v1/report (optional locally). */
+  REPORT_LIMITER?: Limiter;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -109,6 +112,13 @@ app.post("/v1/check", async (c) => {
 
 // --- Free: community report ---
 app.post("/v1/report", async (c) => {
+  // Throttle per client IP to blunt reputation-poisoning spam.
+  const limiter = reportLimiter(c.env.REPORT_LIMITER);
+  const { success } = await limiter.limit({ key: clientKey(c.req.header("cf-connecting-ip")) });
+  if (!success) {
+    return c.json({ error: "Rate limit exceeded. Slow down." }, 429);
+  }
+
   type ReportBody = { target?: unknown; kind?: unknown; reason?: unknown; reporter?: unknown };
   const body = await c.req.json<ReportBody>().catch((): ReportBody => ({}));
 

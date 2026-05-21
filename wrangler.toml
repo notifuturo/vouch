@@ -21,3 +21,13 @@ PRICE_CHECK_USDC = "0.001"
 # newline-delimited bare hostnames with '#' comment lines. Cached + fails open.
 THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
 # PAY_TO_ADDRESS is set as a secret/var per-environment (see .dev.vars.example).
+
+# Rate limiter for the free POST /v1/report endpoint (anti-poisoning abuse).
+# 10 reports per 60s per client IP. No-ops gracefully if unbound (local/tests).
+[[ratelimits]]
+name = "REPORT_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 60
