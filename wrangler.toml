@@ -16,7 +16,9 @@ database_id = "9f09e97e-4174-461f-87de-5b0ca42a1174"
 # x402 settings. Testnet first ($0). Switch NETWORK to "base" for mainnet.
 X402_NETWORK = "base-sepolia"
 X402_FACILITATOR_URL = "https://x402.org/facilitator"
-PRICE_CHECK_USDC = "0.001"
+# Price per /v1/check. Set above the CDP facilitator fee ($0.001/settle after the
+# first 1,000/month) to keep margin. $0.01 = ~90% margin; tune freely.
+PRICE_CHECK_USDC = "0.01"
 # Free threat feed for the `threat_feed` signal. URLhaus host list: plain,
 # newline-delimited bare hostnames with '#' comment lines. Cached + fails open.
 THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
