@@ -24,6 +24,13 @@ THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
 # commit); the matching private key is never stored here. Testnet wallet for now.
 PAY_TO_ADDRESS = "0x84877c232FB62CBf2028A97828507428cf82dC1a"
 
+# Agnic monetization registry headers (X-Merchant-* on every response).
+# OPTIONAL: emitted only when set. Fill these in AFTER creating an Agnic
+# merchant account at app.agnic.ai/monetize, then redeploy — no code change.
+# AGNIC_MERCHANT_ID = ""        # merchant id issued by Agnic
+# AGNIC_MERCHANT_WALLET = ""    # USDC payout address
+# AGNIC_FEE_PERCENT = ""        # our margin, e.g. "2.5"
+
 # Rate limiter for the free POST /v1/report endpoint (anti-poisoning abuse).
 # 10 reports per 60s per client IP. No-ops gracefully if unbound (local/tests).
 [[ratelimits]]

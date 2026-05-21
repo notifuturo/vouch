@@ -19,6 +19,12 @@ export interface Env {
   THREAT_FEED_URL?: string;
   /** Cloudflare Rate Limiting binding for /v1/report (optional locally). */
   REPORT_LIMITER?: Limiter;
+  /** Agnic merchant id (from app.agnic.ai/monetize). Optional until registered. */
+  AGNIC_MERCHANT_ID?: string;
+  /** Agnic USDC payout wallet address. Optional until registered. */
+  AGNIC_MERCHANT_WALLET?: string;
+  /** Agnic merchant margin/fee percent. Optional until registered. */
+  AGNIC_FEE_PERCENT?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -38,6 +44,24 @@ app.use("*", (c, next) => {
     priceUsdc: c.env.PRICE_CHECK_USDC,
   });
   return gate(c, next);
+});
+
+// --- Agnic merchant headers (decorative, runs after the gate) ---
+// Identifies this endpoint to the Agnic monetization registry. Config-driven
+// and OPTIONAL: each header is emitted only when its env var is set and
+// non-empty, so nothing breaks before the merchant account exists and it's
+// instantly active once the vars are filled in. Set AFTER next() so it only
+// decorates the final response (including the gate's 402).
+app.use("*", async (c, next) => {
+  await next();
+  const headers: Record<string, string | undefined> = {
+    "X-Merchant-Id": c.env.AGNIC_MERCHANT_ID,
+    "X-Merchant-Wallet": c.env.AGNIC_MERCHANT_WALLET,
+    "X-Merchant-Fee-Percent": c.env.AGNIC_FEE_PERCENT,
+  };
+  for (const [name, value] of Object.entries(headers)) {
+    if (value) c.header(name, value);
+  }
 });
 
 // Shared per-isolate denylist (hydrated lazily, cached with TTL).
