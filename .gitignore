@@ -20,6 +20,9 @@ ruvector.db
 ruvector.db-wal
 ruvector.db-shm
 
+# Node dependencies (agentic-flow for ruflo embeddings/routing)
+node_modules/
+
 # Secrets
 .env
 .env.local
