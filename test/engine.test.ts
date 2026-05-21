@@ -36,10 +36,17 @@ describe("aggregate", () => {
     expect(aggregate([sig(1, 9), sig(0.5, 1)])).toBeGreaterThan(90);
   });
 
-  it("caps the score when any signal is a hard negative", () => {
-    // Without the cap this would be ~75; the hard negative forces <= 15.
-    const score = aggregate([sig(1, 3), sig(0, 1)]);
+  it("caps the score when an AUTHORITATIVE signal is a hard negative", () => {
+    // Without the cap this would be ~75; an authoritative hard negative forces <= 15.
+    const score = aggregate([sig(1, 3, "transport"), sig(0, 1, "threat_feed")]);
     expect(score).toBeLessThanOrEqual(15);
+  });
+
+  it("does NOT hard-cap on a non-authoritative hard negative (poisoning resistance)", () => {
+    // A zero-scoring crowd 'reputation' signal pulls the average down but must
+    // not unilaterally force critical.
+    const score = aggregate([sig(1, 3, "threat_feed"), sig(0, 2, "reputation")]);
+    expect(score).toBeGreaterThan(15);
   });
 
   it("clamps NaN scores to safe lower bound", () => {

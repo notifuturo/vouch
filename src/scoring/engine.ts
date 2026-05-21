@@ -9,12 +9,21 @@ export function toRiskBand(score: number): RiskBand {
 }
 
 /**
+ * Signals whose hard-negative reading is trustworthy enough to unilaterally
+ * cap the overall score. Deliberately excludes crowd-sourced `reputation`:
+ * anyone can POST reports, so a few anonymous flags must not be able to force
+ * a `critical` verdict on their own (reputation-poisoning resistance). Such
+ * signals still pull the weighted average down — they just can't hard-cap.
+ */
+const AUTHORITATIVE = new Set(["threat_feed", "transport"]);
+
+/**
  * Combine weighted signals into a 0-100 trust score.
  *
  * The aggregate is a weighted average of each signal's normalized score, with
- * one safety override: any signal scoring <= 0.05 (a hard negative, e.g. a
- * threat-feed hit) caps the overall score so a single strong red flag cannot
- * be averaged away by benign signals.
+ * one safety override: any AUTHORITATIVE signal scoring <= 0.05 (a hard
+ * negative, e.g. a threat-feed hit) caps the overall score so a single strong,
+ * objective red flag cannot be averaged away by benign signals.
  */
 export function aggregate(signals: Signal[]): number {
   const usable = signals.filter((s) => s.weight > 0);
@@ -24,7 +33,7 @@ export function aggregate(signals: Signal[]): number {
   const weighted = usable.reduce((sum, s) => sum + clamp01(s.score) * s.weight, 0);
   let score = (weighted / totalWeight) * 100;
 
-  const hardNegative = usable.find((s) => s.score <= 0.05);
+  const hardNegative = usable.find((s) => s.score <= 0.05 && AUTHORITATIVE.has(s.id));
   if (hardNegative) score = Math.min(score, 15);
 
   return Math.round(clamp(score, 0, 100));

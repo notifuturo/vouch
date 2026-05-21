@@ -17,4 +17,7 @@ database_id = "REPLACE_AFTER_wrangler_d1_create"
 X402_NETWORK = "base-sepolia"
 X402_FACILITATOR_URL = "https://x402.org/facilitator"
 PRICE_CHECK_USDC = "0.001"
+# Free threat feed for the `threat_feed` signal. URLhaus host list: plain,
+# newline-delimited bare hostnames with '#' comment lines. Cached + fails open.
+THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
 # PAY_TO_ADDRESS is set as a secret/var per-environment (see .dev.vars.example).

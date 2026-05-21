@@ -38,7 +38,7 @@ overall score so one strong red flag can't be averaged away.
 
 | Signal | Weight | Source |
 |--------|--------|--------|
-| `threat_feed` | 3 | Free feeds (URLhaus/OpenPhish), cached, fails open |
+| `threat_feed` | 3 | [URLhaus](https://urlhaus.abuse.ch/) host list (`THREAT_FEED_URL`), cached, fails open |
 | `reputation` | 2 | Vouch's own accumulating D1 data (the moat) |
 | `transport` | 1.5 | HTTPS / valid host |
 | `domain_heuristics` | 1 | Punycode, raw IPs, abuse-prone TLDs, etc. |

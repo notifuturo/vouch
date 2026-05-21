@@ -27,16 +27,23 @@ describe("assess (end-to-end scoring)", () => {
     expect(result.score).toBeLessThanOrEqual(15);
   });
 
-  it("downgrades a host with community flags", async () => {
+  it("downgrades a flagged host but resists poisoning to critical", async () => {
     const repo = new InMemoryReputationRepo();
     await repo.recordReport("scam.example.com", "flag");
     await repo.recordReport("scam.example.com", "flag");
     await repo.recordReport("scam.example.com", "flag");
-    const result = await assess("https://scam.example.com", {
+    const flagged = await assess("https://scam.example.com", {
       isDenied: noDenylist,
       getReputation: (h) => repo.get(h),
     });
-    expect(["high", "critical"]).toContain(result.risk);
+    const clean = await assess("https://clean.example.com", {
+      isDenied: noDenylist,
+      getReputation: () => Promise.resolve(null),
+    });
+    // Flags lower the score relative to an unknown host...
+    expect(flagged.score).toBeLessThan(clean.score);
+    // ...but anonymous crowd flags alone must not force a `critical` verdict.
+    expect(flagged.risk).not.toBe("critical");
   });
 
   it("handles invalid input without throwing", async () => {
