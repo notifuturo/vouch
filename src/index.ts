@@ -25,6 +25,10 @@ export interface Env {
   AGNIC_MERCHANT_WALLET?: string;
   /** Agnic merchant margin/fee percent. Optional until registered. */
   AGNIC_FEE_PERCENT?: string;
+  /** Coinbase CDP API key id — when set (with secret), settle via CDP facilitator. */
+  CDP_API_KEY_ID?: string;
+  /** Coinbase CDP API key secret (Worker secret). */
+  CDP_API_KEY_SECRET?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -42,6 +46,8 @@ app.use("*", (c, next) => {
     facilitatorUrl: c.env.X402_FACILITATOR_URL,
     payTo: c.env.PAY_TO_ADDRESS,
     priceUsdc: c.env.PRICE_CHECK_USDC,
+    cdpApiKeyId: c.env.CDP_API_KEY_ID,
+    cdpApiKeySecret: c.env.CDP_API_KEY_SECRET,
   });
   return gate(c, next);
 });
