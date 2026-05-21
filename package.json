@@ -1,9 +1,29 @@
 {
-  "name": "agnic-context",
-  "version": "0.0.0",
+  "name": "vouch",
+  "version": "0.1.0",
   "private": true,
-  "description": "Ruflo v3 workspace; agentic-flow provides embeddings/routing.",
+  "description": "Vouch — a per-call payment trust & reputation API for AI agents, monetized over x402.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "db:init": "wrangler d1 execute vouch --local --file=./src/db/schema.sql"
+  },
   "dependencies": {
-    "agentic-flow": "^2.0.13"
+    "@x402/core": "^2.12.0",
+    "@x402/evm": "^2.12.0",
+    "@x402/hono": "^2.12.0",
+    "hono": "^4.12.21"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "agentic-flow": "^2.0.13",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "wrangler": "^4.93.1"
   }
 }

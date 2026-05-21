@@ -1,0 +1,20 @@
+# Cloudflare Workers config for Vouch.
+# Free tier: 100k requests/day. No server to manage.
+name = "vouch"
+main = "src/index.ts"
+compatibility_date = "2026-01-09"
+compatibility_flags = ["nodejs_compat"]
+
+# Reputation store — Cloudflare D1 (free tier SQLite).
+# Create with: wrangler d1 create vouch  (then paste the database_id below)
+[[d1_databases]]
+binding = "DB"
+database_name = "vouch"
+database_id = "REPLACE_AFTER_wrangler_d1_create"
+
+[vars]
+# x402 settings. Testnet first ($0). Switch NETWORK to "base" for mainnet.
+X402_NETWORK = "base-sepolia"
+X402_FACILITATOR_URL = "https://x402.org/facilitator"
+PRICE_CHECK_USDC = "0.001"
+# PAY_TO_ADDRESS is set as a secret/var per-environment (see .dev.vars.example).
