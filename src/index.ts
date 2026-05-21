@@ -8,6 +8,7 @@ import { createPaymentGate } from "./payments.js";
 import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
 import { resolveLimiter, clientKey, type Limiter } from "./ratelimit.js";
 import { landingPage } from "./landing.js";
+import { handleMcpBody, rpcError } from "./mcp.js";
 
 export interface Env {
   DB: D1Database;
@@ -128,8 +129,27 @@ const discoveryConfig = (c: { env: Env; req: { url: string } }) => ({
 // x402 "bazaar"-style resource list.
 app.get("/.well-known/x402", (c) => c.json(buildX402Descriptor(discoveryConfig(c))));
 
-// MCP-style tool manifest (static descriptor, no MCP transport).
+// MCP-style tool manifest (static descriptor; human/registry-readable).
 app.get("/mcp/tools", (c) => c.json(buildMcpToolManifest(discoveryConfig(c))));
+
+// Real MCP server over Streamable HTTP (JSON-RPC 2.0). Free tools only
+// (vouch_score, vouch_report) — paid reasons stay on x402 /v1/check.
+app.post("/mcp", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (body === null) return c.json(rpcError(null, -32700, "Parse error"), 400);
+  denylist ??= createDenylist(c.env.THREAT_FEED_URL);
+  const res = await handleMcpBody(body, {
+    db: c.env.DB,
+    isDenied: denylist,
+    waitUntil: (p) => c.executionCtx.waitUntil(p),
+    rateLimitOk: async () =>
+      (await resolveLimiter(c.env.SCORE_LIMITER).limit({ key: clientKey(c.req.header("cf-connecting-ip")) }))
+        .success,
+  });
+  return res === null ? c.body(null, 202) : c.json(res);
+});
+// This transport is POST-only (stateless); no server->client SSE stream.
+app.get("/mcp", (c) => c.body(null, 405, { Allow: "POST" }));
 
 // Aggregate reputation stats (free) — surfaces the compounding dataset.
 app.get("/v1/stats", async (c) => {
