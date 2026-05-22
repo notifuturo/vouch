@@ -59,6 +59,8 @@ app.use("*", async (c, next) => {
   await next();
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Expose-Headers", CORS_EXPOSE);
+  // Payment challenges/verdicts must never be cached (replay/spend-map safety).
+  if (c.req.path.startsWith("/v1/")) c.header("Cache-Control", "no-store");
   const merchant: Record<string, string | undefined> = {
     "X-Merchant-Id": c.env.AGNIC_MERCHANT_ID,
     "X-Merchant-Wallet": c.env.AGNIC_MERCHANT_WALLET,
@@ -168,6 +170,10 @@ const MAX_REASON = 500;
 const MAX_REPORTER = 128;
 
 // --- Paid: trust check ---
+// GET is POST-only here; return 405 (not 404) so generic buyer probes learn the method.
+app.get("/v1/check", (c) =>
+  c.json({ error: "Method Not Allowed — POST /v1/check (paid via x402)." }, 405, { Allow: "POST" }),
+);
 app.post("/v1/check", async (c) => {
   const body = await c.req
     .json<{ target?: unknown }>()
