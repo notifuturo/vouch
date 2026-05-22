@@ -85,6 +85,7 @@ app.use("*", (c, next) => {
     priceUsdc: c.env.PRICE_CHECK_USDC,
     cdpApiKeyId: c.env.CDP_API_KEY_ID,
     cdpApiKeySecret: c.env.CDP_API_KEY_SECRET,
+    supportedDb: c.env.DB,
   });
   return gate(c, next);
 });
