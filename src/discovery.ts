@@ -142,7 +142,8 @@ export const CHECK_DESCRIPTION =
   "returns a 0-100 trust score, a risk band, and the reasons — so an agent can " +
   "decide whether it's safe to pay before sending money. Flags scams, phishing, " +
   "and known-malicious endpoints using threat feeds, domain risk heuristics, and " +
-  "a community reputation graph.";
+  "a community reputation graph. The paid response includes a signed, verifiable " +
+  "attestation the agent can keep as proof it checked before paying.";
 
 /**
  * Build the canonical x402 v2 / Bazaar discovery descriptor: a list of paid

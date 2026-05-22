@@ -22,7 +22,8 @@ const TOOLS = [
       "detecting scams, phishing, and known-malicious endpoints via threat feeds, " +
       "domain risk heuristics, and a community reputation graph. Call this before " +
       "paying any merchant, API, agent, or x402 resource. Free — for the full " +
-      "explainable reasons behind the score, call the paid POST /v1/check endpoint via x402.",
+      "explainable reasons AND a signed, verifiable attestation (proof of the check " +
+      "for audit/disputes), call the paid POST /v1/check endpoint via x402.",
     inputSchema: {
       type: "object",
       properties: { target: { type: "string", description: "Counterparty URL or hostname." } },

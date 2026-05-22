@@ -9,6 +9,7 @@ import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
 import { resolveLimiter, clientKey, type Limiter } from "./ratelimit.js";
 import { landingPage } from "./landing.js";
 import { handleMcpBody, rpcError } from "./mcp.js";
+import { signAttestation, attestationPublicJwk } from "./attest.js";
 
 export interface Env {
   DB: D1Database;
@@ -32,6 +33,8 @@ export interface Env {
   CDP_API_KEY_ID?: string;
   /** Coinbase CDP API key secret (Worker secret). */
   CDP_API_KEY_SECRET?: string;
+  /** Ed25519 signing seed (base64, 32 bytes) for paid attestations. Optional. */
+  VOUCH_SIGNING_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -104,8 +107,9 @@ app.get("/", (c) => {
     name: "Vouch",
     description: "Per-call payment trust & reputation API for AI agents (x402-monetized).",
     endpoints: {
-      "POST /v1/check": "Full verdict (score + risk + reasons). Paid via x402.",
+      "POST /v1/check": "Full verdict (score + risk + reasons) + signed attestation. Paid via x402.",
       "POST /v1/score": "Score + risk only. Free (rate-limited).",
+      "GET /v1/attestation/pubkey": "Ed25519 public key to verify attestations. Free.",
       "POST /v1/report": "Report a host as flag|vouch. Free.",
       "GET /v1/stats": "Aggregate reputation totals. Free.",
       "GET /health": "Liveness.",
@@ -193,7 +197,29 @@ app.post("/v1/check", async (c) => {
     c.executionCtx.waitUntil(repo.recordCheck(result.host));
   }
 
+  // Paid-tier differentiator: a signed, verifiable attestation the agent can
+  // keep as proof of due diligence (free /v1/score never includes this).
+  if (c.env.VOUCH_SIGNING_KEY && result.host) {
+    const attestation = signAttestation(c.env.VOUCH_SIGNING_KEY, {
+      subject: result.host,
+      score: result.score,
+      risk: result.risk,
+    });
+    return c.json({ ...result, attestation });
+  }
   return c.json(result);
+});
+
+// Public key to verify /v1/check attestations (free, ungated).
+app.get("/v1/attestation/pubkey", (c) => {
+  if (!c.env.VOUCH_SIGNING_KEY) {
+    return c.json({ error: "Attestations not configured." }, 503);
+  }
+  return c.json({
+    alg: "EdDSA",
+    keys: [attestationPublicJwk(c.env.VOUCH_SIGNING_KEY)],
+    note: "Verify the EdDSA JWT in /v1/check's `attestation` field against this Ed25519 public key.",
+  });
 });
 
 // --- Free tier: score only (no reasons) ---
