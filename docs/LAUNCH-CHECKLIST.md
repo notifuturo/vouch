@@ -7,6 +7,17 @@ Legend: 💲0 = free · 🔑 = needs your GitHub/wallet · ⏱️ = ~minutes
 
 ---
 
+## 📍 STATUS (resume here) — updated 2026-05-22
+- ✅ **LIVE ON BASE MAINNET** — https://vouch.futuronoti.workers.dev · pays to your wallet `0xe126002451d0187058cD03719bBCc0bd1CD9c5c9` · `/v1/check` returns 402 on `eip155:8453` with mainnet USDC. **Vouch can receive real USDC now.**
+- ✅ Published to the official **MCP registry** (`io.github.notifuturo/vouch`) → auto-fans-out to PulseMCP/Glama over the coming days.
+- ✅ awesome-x402 PRs open (#252, #414).
+- 👉 **NEXT ACTION = Phase 2 below: trigger the FIRST settled payment.** This both (a) proves real mainnet settlement end-to-end and (b) gets Vouch indexed/ranked in the Coinbase Bazaar → Agentic.Market + AWS Bedrock (the no-audience discovery channel). Until this happens, you're listed but not yet *ranked* where agents shop.
+- 🔒 **Do now:** back up your Coinbase Wallet 12-word recovery phrase offline (Settings → Recovery Phrase). It's your money — Coinbase can't recover it.
+- Optional/anytime: list on MCPay/Smithery/mcp.so (free, paste-ready in `SUBMISSIONS.md`); Agnic (`scripts/agnic-list.sh`).
+- Rollback if ever needed: set `X402_NETWORK = "base-sepolia"` in `wrangler.toml` and deploy.
+
+---
+
 ## Phase 0 — Free discovery (no wallet, no mainnet) — do today
 *Makes Vouch a discoverable free tool (`vouch_score`) so agents start using it and
 the reputation data compounds — before any money is involved.*
