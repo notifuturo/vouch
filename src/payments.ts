@@ -35,69 +35,117 @@ export interface PaymentConfig {
 
 const SUPPORTED_CACHE_KEY = "facilitator-supported";
 const SUPPORTED_TTL_MS = 3600_000; // 1h
-const GET_SUPPORTED_TIMEOUT_MS = 12_000;
+const REAL_TIMEOUT_MS = 8_000; // bound the background CDP /supported fetch
+const D1_TIMEOUT_MS = 3_000; // bound the background D1 read
+const REFRESH_BACKOFF_MS = 30_000; // re-arm a failed refresh after this
 
-/** Reject after `ms` so a slow CDP /supported call can't hang a cold isolate. */
+/**
+ * Known-good supported-kinds for the networks Vouch advertises (Base + Base
+ * Sepolia, x402 v1 + v2). This is the EXACT shape the facilitator's /supported
+ * returns for our scheme/networks — verified against the live CDP response —
+ * trimmed to what we actually register. It seeds an instant, network-free answer
+ * so a COLD isolate can build the 402 challenge without ever blocking on the
+ * facilitator round-trip. The full live response is fetched in the background
+ * (below) and replaces this for any later reads. verify/settle are untouched —
+ * this only affects how the 402 challenge is assembled.
+ */
+const STATIC_SUPPORTED = {
+  kinds: [
+    { x402Version: 1, scheme: "exact", network: "base-sepolia" },
+    { x402Version: 1, scheme: "exact", network: "base" },
+    { x402Version: 2, scheme: "exact", network: "eip155:84532" },
+    { x402Version: 2, scheme: "exact", network: "eip155:8453" },
+  ],
+};
+
+// Per-isolate in-memory cache. Seeded with the static value so getSupported()
+// NEVER awaits I/O on the request path — the cold-start hang is structurally
+// impossible. `memFreshUntil === 0` means we're still on the static seed and
+// should attempt a background refresh on the next call.
+let memSupported: unknown = STATIC_SUPPORTED;
+let memFreshUntil = 0;
+let refreshing: Promise<void> | null = null;
+
+/** Reject after `ms` so a slow upstream call can't hang the (background) refresh. */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("getSupported timed out")), ms),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timed out")), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
 /**
- * Wrap a facilitator client's getSupported() with a D1 cache so a COLD isolate
- * reads the (real, previously-fetched) supported-kinds from D1 instead of
- * blocking on a slow CDP /supported round-trip — the cold-start timeout we saw.
- * verify/settle are untouched, and we only ever cache the REAL response (no
- * fabricated payment terms). On a cache miss the live call is bounded by a
- * timeout and we fall back to a stale row if one exists.
+ * Refresh the in-memory supported-kinds in the BACKGROUND (never awaited on the
+ * request path). Prefers the D1-cached real response (shared across isolates),
+ * else fetches live and persists it. Every external call is bounded; on failure
+ * we keep whatever we already have (static seed or last-good) and back off. A
+ * dangling timed-out fetch here is harmless — it blocks no response.
  */
-function cacheGetSupported<T extends { getSupported: () => Promise<unknown> }>(
-  client: T,
-  db: D1Database,
-): T {
-  const real = client.getSupported.bind(client);
-  let tableReady: Promise<unknown> | null = null;
-  const ensureTable = () =>
-    (tableReady ??= db.exec(
-      "CREATE TABLE IF NOT EXISTS facilitator_cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
-    ));
-
-  client.getSupported = (async () => {
+function refreshSupported(
+  real: () => Promise<unknown>,
+  db: D1Database | undefined,
+): Promise<void> {
+  return (refreshing ??= (async () => {
     try {
-      await ensureTable();
-      const row = await db
-        .prepare("SELECT value, updated_at FROM facilitator_cache WHERE key = ?")
-        .bind(SUPPORTED_CACHE_KEY)
-        .first<{ value: string; updated_at: number }>();
-
-      if (row && Date.now() - row.updated_at < SUPPORTED_TTL_MS) {
-        return JSON.parse(row.value);
+      if (db) {
+        await db
+          .exec(
+            "CREATE TABLE IF NOT EXISTS facilitator_cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
+          )
+          .catch(() => undefined);
+        const row = await withTimeout(
+          db
+            .prepare("SELECT value, updated_at FROM facilitator_cache WHERE key = ?")
+            .bind(SUPPORTED_CACHE_KEY)
+            .first<{ value: string; updated_at: number }>(),
+          D1_TIMEOUT_MS,
+        );
+        if (row && Date.now() - row.updated_at < SUPPORTED_TTL_MS) {
+          memSupported = JSON.parse(row.value);
+          memFreshUntil = Date.now() + SUPPORTED_TTL_MS;
+          return;
+        }
       }
-
-      // Miss or stale: fetch fresh (bounded), persist, and return.
-      try {
-        const fresh = await withTimeout(real(), GET_SUPPORTED_TIMEOUT_MS);
+      // Cache miss/stale: fetch the live, real response (bounded) and persist it.
+      const fresh = await withTimeout(real(), REAL_TIMEOUT_MS);
+      memSupported = fresh;
+      memFreshUntil = Date.now() + SUPPORTED_TTL_MS;
+      if (db) {
         await db
           .prepare(
             "INSERT INTO facilitator_cache (key, value, updated_at) VALUES (?, ?, ?) " +
               "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
           )
           .bind(SUPPORTED_CACHE_KEY, JSON.stringify(fresh), Date.now())
-          .run();
-        return fresh;
-      } catch (err) {
-        // CDP slow/unreachable: serve a stale cached value if we have one.
-        if (row) return JSON.parse(row.value);
-        throw err;
+          .run()
+          .catch(() => undefined);
       }
     } catch {
-      // D1 itself failed — fall back to the live call (best effort).
-      return real();
+      // Keep the static/last-good value; re-arm a refresh after a short backoff.
+      memFreshUntil = Date.now() + REFRESH_BACKOFF_MS;
+    } finally {
+      refreshing = null;
     }
+  })());
+}
+
+/**
+ * Wrap a facilitator client's getSupported() so it answers SYNCHRONOUSLY from an
+ * in-memory cache (seeded with a verified static value) and only ever refreshes
+ * via D1 / the live facilitator in the background. This removes the facilitator
+ * /supported round-trip from the cold-isolate 402 path entirely — the source of
+ * the ~20s cold-start hang. We only ever serve the REAL response (or the static
+ * seed that mirrors it); no fabricated payment terms. verify/settle untouched.
+ */
+function cacheGetSupported<T extends { getSupported: () => Promise<unknown> }>(
+  client: T,
+  db: D1Database | undefined,
+): T {
+  const real = client.getSupported.bind(client);
+  client.getSupported = (async () => {
+    if (Date.now() >= memFreshUntil) void refreshSupported(real, db);
+    return memSupported;
   }) as T["getSupported"];
   return client;
 }
@@ -130,9 +178,12 @@ export function createPaymentGate(cfg: PaymentConfig): MiddlewareHandler {
   const onMainnet = caip2 === BASE_MAINNET;
 
   const baseClient = new HTTPFacilitatorClient(facilitatorConfig);
-  // Cache getSupported on the concrete client BEFORE withBazaar wraps it, so the
-  // override reliably sticks (and any bazaar layer delegates through it).
-  if (cfg.supportedDb) cacheGetSupported(baseClient, cfg.supportedDb);
+  // Always wrap getSupported with the in-memory/static cache BEFORE withBazaar
+  // wraps the client, so the override reliably sticks. This keeps the facilitator
+  // /supported round-trip off the request path even when D1 is unavailable (the
+  // static seed alone is enough to emit our 402); D1 just shares the real
+  // response across cold isolates when present.
+  cacheGetSupported(baseClient, cfg.supportedDb);
   const facilitator = onMainnet ? withBazaar(baseClient) : baseClient;
   const server = new x402ResourceServer(facilitator).register(caip2, new ExactEvmScheme());
 
