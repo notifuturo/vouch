@@ -12,13 +12,13 @@ Legend: 💲0 = free · 🔑 = needs your GitHub/wallet · ⏱️ = ~minutes
 the reputation data compounds — before any money is involved.*
 
 - [x] **Repo is public** — https://github.com/notifuturo/vouch ✅
-- [ ] **Publish the MCP server to the official registry** 💲0 🔑 ⏱️
+- [x] **Published to the official MCP registry** ✅ `io.github.notifuturo/vouch` v0.1.0 — live & searchable. → fans out to PulseMCP, Glama. Mainnet-independent.
   ```bash
-  npm i -g @modelcontextprotocol/publisher    # or grab the binary from the registry repo
-  mcp-publisher login github                   # auth as notifuturo
-  mcp-publisher publish                        # reads ./server.json
+  # mcp-publisher is a binary (NOT npm). To re-publish after edits to server.json:
+  gh release download v1.7.9 -R modelcontextprotocol/registry -p "mcp-publisher_linux_amd64.tar.gz" && tar xzf mcp-publisher_linux_amd64.tar.gz
+  ./mcp-publisher login github     # device-flow: visit github.com/login/device, enter code (as notifuturo)
+  ./mcp-publisher publish          # reads ./server.json (description must be <=100 chars)
   ```
-  → auto-fans-out to PulseMCP, Glama. Mainnet-independent.
 - [ ] **awesome-x402 PRs** — already open: [Merit #252](https://github.com/Merit-Systems/awesome-x402/pull/252), [xpaysh #414](https://github.com/xpaysh/awesome-x402/pull/414). Reply to reviewers if needed. 💲0
 - [ ] **List on MCPay** (accepts our paid HTTP endpoint + MCP) — mcpay.tech submit. 💲0
 - [ ] **Submit to Smithery** (smithery.ai) + **mcp.so** — we now expose a real MCP endpoint. 💲0
