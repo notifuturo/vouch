@@ -137,9 +137,12 @@ export const CHECK_OUTPUT_EXAMPLE = {
   reasons: ["Host uses HTTPS", "Not on known threat feeds"],
 } as const;
 
-const CHECK_DESCRIPTION =
-  "Assess whether a counterparty is safe to pay. Returns an explainable trust " +
-  "score (0-100), a risk band, and the reasons behind the verdict.";
+export const CHECK_DESCRIPTION =
+  "Counterparty trust & risk check for AI agent payments: given a URL or host, " +
+  "returns a 0-100 trust score, a risk band, and the reasons — so an agent can " +
+  "decide whether it's safe to pay before sending money. Flags scams, phishing, " +
+  "and known-malicious endpoints using threat feeds, domain risk heuristics, and " +
+  "a community reputation graph.";
 
 /**
  * Build the canonical x402 v2 / Bazaar discovery descriptor: a list of paid

@@ -17,10 +17,12 @@ const TOOLS = [
   {
     name: "vouch_score",
     description:
-      "Free counterparty trust check for AI agents. Given a target (URL or host), " +
-      "returns a 0-100 trust score and a risk band (low/medium/high/critical) so an " +
-      "agent can decide whether it's safe to pay. For the full explainable reasons, " +
-      "call the paid POST /v1/check endpoint via x402.",
+      "Check whether a counterparty is SAFE TO PAY before sending money. Given a URL " +
+      "or host, returns a 0-100 trust score and risk band (low/medium/high/critical), " +
+      "detecting scams, phishing, and known-malicious endpoints via threat feeds, " +
+      "domain risk heuristics, and a community reputation graph. Call this before " +
+      "paying any merchant, API, agent, or x402 resource. Free — for the full " +
+      "explainable reasons behind the score, call the paid POST /v1/check endpoint via x402.",
     inputSchema: {
       type: "object",
       properties: { target: { type: "string", description: "Counterparty URL or hostname." } },
@@ -31,8 +33,9 @@ const TOOLS = [
   {
     name: "vouch_report",
     description:
-      "Report a host as 'flag' (bad actor) or 'vouch' (trustworthy), feeding Vouch's " +
-      "community reputation graph. Free.",
+      "Report a host as a scam/bad actor ('flag') or as trustworthy ('vouch'), " +
+      "improving Vouch's community reputation graph for everyone's future " +
+      "payment-trust checks. Free.",
     inputSchema: {
       type: "object",
       properties: {

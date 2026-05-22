@@ -3,7 +3,12 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { withBazaar, declareDiscoveryExtension } from "@x402/extensions";
 import { createCdpFacilitatorConfig } from "./cdpAuth.js";
-import { CHECK_INPUT_SCHEMA, CHECK_OUTPUT_SCHEMA, CHECK_OUTPUT_EXAMPLE } from "./discovery.js";
+import {
+  CHECK_INPUT_SCHEMA,
+  CHECK_OUTPUT_SCHEMA,
+  CHECK_OUTPUT_EXAMPLE,
+  CHECK_DESCRIPTION,
+} from "./discovery.js";
 import type { MiddlewareHandler } from "hono";
 
 const BASE_MAINNET = "eip155:8453";
@@ -66,7 +71,7 @@ export function createPaymentGate(cfg: PaymentConfig): MiddlewareHandler {
         payTo: cfg.payTo,
       },
     ],
-    description: "Vouch payment trust check — risk score for a counterparty.",
+    description: CHECK_DESCRIPTION,
     mimeType: "application/json",
   };
   if (onMainnet) {
