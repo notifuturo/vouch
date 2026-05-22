@@ -14,7 +14,7 @@ database_id = "9f09e97e-4174-461f-87de-5b0ca42a1174"
 
 [vars]
 # x402 settings. Testnet first ($0). Switch NETWORK to "base" for mainnet.
-X402_NETWORK = "base-sepolia"
+X402_NETWORK = "base"
 X402_FACILITATOR_URL = "https://x402.org/facilitator"
 # Price per /v1/check. Set above the CDP facilitator fee ($0.001/settle after the
 # first 1,000/month) to keep margin. $0.01 = ~90% margin; tune freely.
@@ -24,7 +24,7 @@ PRICE_CHECK_USDC = "0.01"
 THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
 # PAY_TO_ADDRESS receives x402 payments. This is a PUBLIC address (safe to
 # commit); the matching private key is never stored here. Testnet wallet for now.
-PAY_TO_ADDRESS = "0x84877c232FB62CBf2028A97828507428cf82dC1a"
+PAY_TO_ADDRESS = "0xe126002451d0187058cD03719bBCc0bd1CD9c5c9"
 
 # Agnic monetization registry headers (X-Merchant-* on every response).
 # OPTIONAL: emitted only when set. Fill these in AFTER creating an Agnic
