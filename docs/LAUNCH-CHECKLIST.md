@@ -12,6 +12,7 @@ Legend: 💲0 = free · 🔑 = needs your GitHub/wallet · ⏱️ = ~minutes
 - ✅ Published to the official **MCP registry** (`io.github.notifuturo/vouch`) → auto-fans-out to PulseMCP/Glama over the coming days.
 - ✅ awesome-x402 PRs open (#252, #414).
 - 👉 **NEXT ACTION = Phase 2 below: trigger the FIRST settled payment.** This both (a) proves real mainnet settlement end-to-end and (b) gets Vouch indexed/ranked in the Coinbase Bazaar → Agentic.Market + AWS Bedrock (the no-audience discovery channel). Until this happens, you're listed but not yet *ranked* where agents shop.
+- ⚠️ **#1 RELIABILITY FIX (before driving real traffic):** cold Cloudflare isolates time out on the *first* `/v1/check` (the CDP `getSupported` fetch hangs ~40s); warm isolates return `402` in ~0.2s. A real agent's first call could time out. **Fix:** cache `getSupported` in Cloudflare KV (a `CachedFacilitatorClient` wrapper) so cold isolates skip the CDP round-trip. Focused payment-path task for next session.
 - 🔒 **Do now:** back up your Coinbase Wallet 12-word recovery phrase offline (Settings → Recovery Phrase). It's your money — Coinbase can't recover it.
 - Optional/anytime: list on MCPay/Smithery/mcp.so (free, paste-ready in `SUBMISSIONS.md`); Agnic (`scripts/agnic-list.sh`).
 - Rollback if ever needed: set `X402_NETWORK = "base-sepolia"` in `wrangler.toml` and deploy.
