@@ -67,9 +67,17 @@ first 1,000 settles/month free).*
 *Bazaar/Agentic.Market/AWS Bedrock index after the first SETTLED mainnet payment.*
 
 - [ ] **Trigger the first settle** — either:
-  - **(a)** ~5¢ of real USDC: fund a buyer wallet and run
-    `PRIVATE_KEY=... VOUCH_URL=https://vouch.futuronoti.workers.dev npx tsx examples/buyer.ts https://stripe.com`, **or**
-  - **(b)** wait for the first organic buyer from Phase 0 channels (no spend).
+  - **(a) Self-bootstrap (~$1, mostly returns to you):** money moves between *your own* wallets, so net cost ≈ $0 + a small onramp fee. Steps:
+    1. **Generate a throwaway BUYER wallet** (its key never needs to leave the box):
+       `node --input-type=module -e 'import {generatePrivateKey,privateKeyToAccount} from "viem/accounts";import {writeFileSync} from "node:fs";const pk=generatePrivateKey();writeFileSync("/tmp/vouch_buyer_key",pk,{mode:0o600});console.log(privateKeyToAccount(pk).address)'`
+    2. **Fund that buyer address with ~$1 USDC *on Base*** from your own wallet:
+       - *MetaMask:* switch network to **Base** → confirm you hold **USDC on Base + a little Base ETH for gas** (swap a bit if not) → **Send** USDC to the buyer address. (Funds only on Ethereum L1? Don't bridge a few $ — use Coinbase Wallet "Buy USDC on Base" instead.)
+       - *Coinbase Wallet:* **Buy → USDC** (ensure **Base**) → **Send** ~$1 to the buyer address.
+       - Note: the *funding send* needs sender gas (Base ETH, a few cents); the *Vouch payment itself is gasless* (facilitator covers it), so the buyer needs only USDC.
+    3. **Run the paid call** (pays $0.01 USDC → your PAY_TO wallet):
+       `PRIVATE_KEY=$(cat /tmp/vouch_buyer_key) VOUCH_URL=https://vouch.futuronoti.workers.dev npx tsx examples/buyer.ts https://stripe.com`
+    4. (Optional) sweep the leftover USDC from the buyer wallet back to your main wallet.
+  - **(b) Or wait for the first organic buyer** from the Phase 0 channels (no spend).
 - [ ] **Confirm discovery**: https://agentic.market (search "trust"/"payment risk") and
   `GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/search?query=trust`.
 
