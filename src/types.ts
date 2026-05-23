@@ -45,10 +45,21 @@ export interface ReputationRecord {
   host: string;
   /** Times this host has been checked. */
   checks: number;
-  /** Community/agent reports flagging this host as bad. */
+  /** Community/agent reports flagging this host as bad (raw count, for audit/stats). */
   flags: number;
-  /** Confirmed-good attestations. */
+  /** Confirmed-good attestations (raw count, for audit/stats). */
   vouches: number;
+  /**
+   * Reporter-standing-weighted flag total. Each counted flag contributes a
+   * fraction in (0,1] based on the reporting source's tenure, so a swarm of
+   * fresh/anonymous identities can't move a host's verdict as cheaply as
+   * established reporters (reputation-poisoning resistance). Optional: legacy
+   * records and the in-memory path may omit it, in which case the scoring
+   * signal falls back to the raw `flags` count.
+   */
+  flagWeight?: number;
+  /** Reporter-standing-weighted vouch total (see {@link flagWeight}). */
+  vouchWeight?: number;
   firstSeen: string;
   lastSeen: string;
 }
