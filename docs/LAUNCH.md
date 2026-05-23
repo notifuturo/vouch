@@ -1,6 +1,11 @@
 # Vouch — Distribution Playbook
 
-Live: **https://vouch.futuronoti.workers.dev** · Repo: *(make public before submitting links)*
+Live: **https://vouch.futuronoti.workers.dev** · Repo: **https://github.com/notifuturo/vouch** (public)
+
+> ✅ **STATUS update:** Vouch is now **LIVE on Base mainnet** at **$0.01 USDC**/call (the
+> "mainnet, real-money" step §4 below is DONE). The remaining unlock is the *first settled
+> payment* (which triggers Bazaar ranking). Prose framed as "testnet stage" below is
+> historical planning context.
 
 How the x402 economy actually does discovery (from research):
 - The canonical discovery layer is the **Bazaar** — a *facilitator-side index* populated
@@ -24,7 +29,7 @@ Two active curated lists. Fork → add one line → open PR.
 Ready-to-paste entry:
 
 ```
-[Vouch](https://vouch.futuronoti.workers.dev) - Counterparty trust/risk scoring for x402 payments. Returns an explainable 0-100 score, risk band, and reasons. $0.001 USDC via x402, POST /v1/check. ([/.well-known/x402](https://vouch.futuronoti.workers.dev/.well-known/x402)) ([MCP tools](https://vouch.futuronoti.workers.dev/mcp/tools))
+[Vouch](https://vouch.futuronoti.workers.dev) - Counterparty trust/risk scoring for x402 payments. Returns an explainable 0-100 score, risk band, and reasons. $0.01 USDC via x402, POST /v1/check. ([/.well-known/x402](https://vouch.futuronoti.workers.dev/.well-known/x402)) ([MCP tools](https://vouch.futuronoti.workers.dev/mcp/tools))
 ```
 
 ---
@@ -43,7 +48,7 @@ Agnic does **not** crawl us; listing is manual at the dashboard.
    - **Name:** Vouch
    - **Endpoint:** `https://vouch.futuronoti.workers.dev/v1/check`
    - **Description:** x402-monetized payment-trust score for a counterparty — explainable 0-100 risk score.
-   - **Price:** per-call (start ~$0.001–$0.01 USDC)
+   - **Price:** $0.01 USDC per call (live)
    - **Category / IO schema:** as the form requests (input `{ target: string }` → output `{ score, risk, reasons }`)
 5. Capture your assigned **`X-Merchant-Id`** and set **`X-Merchant-Fee-Percent`** (your margin).
    Then set these as Worker vars and redeploy — the code already emits the three
@@ -60,7 +65,7 @@ Agnic does **not** crawl us; listing is manual at the dashboard.
 Name:        Vouch
 Endpoint:    https://vouch.futuronoti.workers.dev/v1/check
 Method:      POST
-Price:       0.001 USDC per call   (raise later as you like)
+Price:       0.01 USDC per call   (live; raise later as you like)
 Category:    Trust / Verification / Security
 Description: x402-monetized payment-trust API. Given a counterparty (URL/host),
              returns an explainable 0-100 trust score, a risk band, and reasons —
@@ -130,17 +135,18 @@ and **MCPay** (mcpay.tech — accepts our paid HTTP endpoint too).
 ## 5. Secondary / future
 
 - **PayAI facilitator** directory (`facilitator.payai.network/discovery/resources`) — settle via PayAI to appear.
-- **Official MCP Registry** (https://registry.modelcontextprotocol.io) — requires a *real* MCP
-  server (streamable-HTTP transport), which Vouch doesn't expose yet (we ship a static manifest).
-  Future work: stand up an actual MCP transport endpoint, then publish via the `mcp-publisher` CLI.
+- **Official MCP Registry** (https://registry.modelcontextprotocol.io) — ✅ DONE: Vouch
+  publishes a real Streamable-HTTP MCP server and is listed as `io.github.notifuturo/vouch`
+  (see §4b). Re-publish with `mcp-publisher publish` after any `server.json` change.
 
 ---
 
 ## Human checklist (the parts an agent can't do)
 
-- [ ] Make the GitHub repo public.
-- [ ] Open awesome-x402 PRs (both repos) with the entry in §1.
+- [x] Make the GitHub repo public. → https://github.com/notifuturo/vouch
+- [x] Open awesome-x402 PRs (both repos) with the entry in §1. → Merit #252, xpaysh #414 (awaiting maintainer merge).
+- [x] Decide on / execute the mainnet move (§4). → DONE 2026-05-22, live on `eip155:8453`.
 - [ ] Create Agnic account + payout wallet; register Vouch (§2); set `AGNIC_*` vars; redeploy.
-- [ ] Fund a Base Sepolia buyer wallet (Circle faucet) and run `examples/buyer.ts` against the
-      live URL to prove an end-to-end paid call.
-- [ ] Decide on the mainnet move (§4) when ready to handle real money.
+- [ ] Trigger the **first settled payment** on mainnet (organic buyer or a ~$0.01 self-bootstrap
+      from a Base-**mainnet** wallet) to prove end-to-end settlement and trigger Bazaar ranking.
+      Note: the live service is mainnet (`eip155:8453`) — a Base Sepolia wallet can no longer pay it.

@@ -53,10 +53,12 @@ overall score so one strong red flag can't be averaged away.
 
 | Method & path | Cost | Description |
 |---------------|------|-------------|
-| `POST /v1/check` | x402 (USDC) | Full verdict → `{ score, risk, reasons, signals }` |
+| `POST /v1/check` | x402 (USDC) | Full verdict → `{ score, risk, reasons, signals, attestation }` (signed Ed25519 receipt) |
 | `POST /v1/score` | free (rate-limited) | Score + risk only → `{ score, risk }`. Pay `/v1/check` for the *reasons* |
+| `GET /v1/attestation/pubkey` | free | Ed25519 public key (JWK) to verify a `/v1/check` attestation |
 | `POST /v1/report` | free | Submit a `flag` or `vouch` for a host |
 | `GET /v1/stats` | free | Aggregate reputation totals (hosts, checks, flags, vouches) |
+| `POST /mcp` | free | MCP Streamable-HTTP server (`vouch_score`, `vouch_report` tools) |
 | `GET /health` | free | Liveness |
 | `GET /` | free | Service info (HTML landing for browsers) |
 
@@ -69,7 +71,13 @@ agents can preflight and complete the pay/retry flow.
 `flag` or `vouch` for a host, so the raw `flags`/`vouches` counts are *community
 signals, not ground truth*. Abuse is contained by:
 
-- **Rate limiting** — 10 reports per 60s per client IP (Cloudflare Rate Limiting).
+- **Rate limiting** — 10 reports per 60s per client IP (Cloudflare Rate Limiting, fails closed).
+- **Reporter-standing weighting** — each counted report contributes a *weighted* amount
+  (not a flat +1) based on the reporting source's tenure: a brand-new or anonymous source
+  counts at `0.3`, ramping to `1.0` only after ~7 days of sustained reporting. The scoring
+  signal uses these weighted totals, so spinning up fresh sybil identities buys far less
+  influence. A source can also move a given host's counter at most once per 24h (per-source
+  de-dup); raw counts are still logged for audit.
 - **Poisoning resistance in scoring** — community `reputation` is a *non-authoritative*
   signal: it can lower a score but **cannot, on its own, force a `critical` verdict**.
   Only objective signals (threat feeds, transport) can hard-cap the score. So a burst
@@ -84,8 +92,10 @@ verdict, not as an authoritative blocklist.
 TypeScript · [Hono](https://hono.dev) · Cloudflare Workers (free tier) ·
 D1 (free SQLite) · `@x402/*` v2 · public facilitator at `x402.org/facilitator`.
 
-Testnet first (Base Sepolia + free Circle faucet USDC); flip `X402_NETWORK` to
-`base` for mainnet.
+**Live on Base mainnet** (`X402_NETWORK=base`, real USDC, `$0.01`/call). For local
+development, set `X402_NETWORK=base-sepolia` and fund a throwaway wallet from the
+free [Circle faucet](https://faucet.circle.com). The live network and price are
+authoritatively advertised at [`/.well-known/x402`](https://vouch.futuronoti.workers.dev/.well-known/x402).
 
 ## Develop
 

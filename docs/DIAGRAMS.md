@@ -40,9 +40,9 @@ flowchart TB
       RL["Rate limiter 10/60s per IP"]
     end
 
-    DB[("D1: reputation store<br/>checks, flags, vouches")]
+    DB[("D1: reputation + settlements<br/>checks, flags/vouches (+ weighted), settled payments")]
     CDP["Coinbase CDP Facilitator<br/>api.cdp.coinbase.com"]
-    CHAIN["Base Sepolia — USDC (EIP-3009)"]
+    CHAIN["Base mainnet — USDC (EIP-3009)"]
     FEED["URLhaus threat feed"]
 
     BA -->|"1. POST /v1/check (unpaid)"| CORS
@@ -74,7 +74,7 @@ sequenceDiagram
     participant A as Buyer Agent
     participant W as Vouch Worker
     participant F as CDP Facilitator
-    participant C as Base Sepolia
+    participant C as Base mainnet
     participant D as D1
 
     A->>W: POST /v1/check { target } (no payment)
@@ -157,6 +157,8 @@ erDiagram
         int  checks
         int  flags
         int  vouches
+        real flag_weight "reporter-standing-weighted"
+        real vouch_weight "reporter-standing-weighted"
         text first_seen
         text last_seen
     }
@@ -167,6 +169,11 @@ erDiagram
         text reason
         text reporter
         text created_at
+    }
+    SETTLEMENTS {
+        text payment_id PK "sha256 of x402 payment header"
+        text host
+        text settled_at
     }
     REPUTATION ||--o{ REPORTS : "aggregates"
 ```
@@ -202,21 +209,21 @@ flowchart TB
       CFACC["Cloudflare account: futuronoti"]
     end
 
-    GH -->|"push -> CI (typecheck + 63 tests)"| CI["GitHub Actions"]
+    GH -->|"push -> CI (typecheck + Vitest suite)"| CI["GitHub Actions"]
     GH -->|"wrangler deploy"| WK["Worker: vouch.futuronoti.workers.dev"]
 
     subgraph BIND["Worker bindings"]
       D1B[("D1: vouch")]
       RLB["Rate Limiter: REPORT_LIMITER"]
-      VARS["vars: X402_NETWORK=base-sepolia,<br/>PRICE, PAY_TO, THREAT_FEED_URL"]
-      SECRETS["secrets: CDP_API_KEY_ID,<br/>CDP_API_KEY_SECRET"]
+      VARS["vars: X402_NETWORK=base,<br/>PRICE, PAY_TO, THREAT_FEED_URL"]
+      SECRETS["secrets: CDP_API_KEY_ID,<br/>CDP_API_KEY_SECRET, VOUCH_SIGNING_KEY"]
     end
 
     WK --- D1B
     WK --- RLB
     WK --- VARS
     WK --- SECRETS
-    WK -->|"settle"| CDP["CDP Facilitator -> Base Sepolia"]
+    WK -->|"settle"| CDP["CDP Facilitator -> Base mainnet"]
 ```
 
 ---
@@ -225,12 +232,12 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    V["Vouch (live, Base Sepolia)"]
+    V["Vouch (LIVE, Base mainnet)"]
 
     V --> AW["awesome-x402 PRs<br/>Merit-Systems #252 · xpaysh #414"]
     V --> AG["Agnic registry<br/>app.agnic.ai/monetize (manual)"]
-    V -. mainnet decision .-> MN["Base mainnet + CDP settlement"]
-    MN --> BZ["Bazaar / Agentic.Market<br/>auto-indexed from settled payments"]
+    V --> MN["Base mainnet + CDP settlement (active)"]
+    MN -. first settle indexes .-> BZ["Bazaar / Agentic.Market<br/>auto-indexed from settled payments"]
 
     AW -->|"discovery + clicks"| AGENTS["AI agents discover & pay"]
     AG -->|"MCP discovery, 5% fee"| AGENTS
@@ -290,7 +297,7 @@ flowchart TB
         RL["ratelimit.ts · landing.ts · types.ts"]
       end
       subgraph BIND["Worker bindings"]
-        D1[("D1 SQLite:<br/>reputation, reports")]
+        D1[("D1 SQLite:<br/>reputation, reports, settlements")]
         RLB["Rate limiters:<br/>REPORT, SCORE"]
         SEC["Secrets: CDP_API_KEY_ID/SECRET,<br/>VOUCH_SIGNING_KEY"]
         VARS["Vars: X402_NETWORK=base,<br/>PRICE, PAY_TO, THREAT_FEED_URL"]
@@ -322,7 +329,7 @@ flowchart TB
 
     subgraph DEV["dev · build · CI · dist"]
       TS["TypeScript (strict)"]
-      VIT["Vitest — 82 tests"]
+      VIT["Vitest test suite"]
       WR["Wrangler (deploy)"]
       WT["@cloudflare/workers-types"]
       GH["GitHub notifuturo/vouch + Actions CI"]
@@ -364,5 +371,5 @@ flowchart TB
 Limiting, Secrets/Vars) · deps `@x402/core` `/hono` `/evm` `/extensions` `/fetch`,
 `@noble/curves`, `hono`, `viem` · standards x402, MCP, EIP-3009, Ed25519/EdDSA,
 USDC, CAIP-2 · external CDP facilitator → Base mainnet, URLhaus, MCP registry
-(→ PulseMCP/Glama), x402 Bazaar → Agentic.Market + AWS Bedrock · dev/build Vitest
-(82 tests), Wrangler, GitHub Actions CI, `mcp-publisher`, `vouch-sdk`.
+(→ PulseMCP/Glama), x402 Bazaar → Agentic.Market + AWS Bedrock · dev/build Vitest,
+Wrangler, GitHub Actions CI, `mcp-publisher`, `vouch-sdk`.

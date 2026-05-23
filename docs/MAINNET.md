@@ -1,11 +1,13 @@
 # Vouch — Mainnet Cutover Runbook
 
+> ✅ **DONE — the flip already happened (2026-05-22).** Vouch is LIVE on Base mainnet:
+> `X402_NETWORK=base` (`eip155:8453`), `PAY_TO_ADDRESS=0xe126002451d0187058cD03719bBCc0bd1CD9c5c9`,
+> price `$0.01` USDC. `/v1/check` returns a 402 advertising mainnet USDC. The runbook
+> below is kept as the historical procedure (and the rollback path is still valid).
+
 Going to **Base mainnet** is the single biggest distribution lever: it turns
 Vouch's discovery into *ranked, paying* traffic and auto-lands it in the Coinbase
 x402 Bazaar → Agentic.Market + AWS Bedrock AgentCore (see `DISTRIBUTION.md`).
-
-**It is a founder decision — it commits you to real-money operations.** Everything
-below is staged; nothing here spends money until *you* run the flip.
 
 ## What's already done (code is mainnet-ready)
 - `X402_NETWORK=base` maps to `eip155:8453`; mainnet USDC (`0x833589fC…2913`) and its
@@ -21,8 +23,7 @@ below is staged; nothing here spends money until *you* run the flip.
 - **Settlement gas** on Base is fractions of a cent and is paid in the x402 flow,
   not by you holding ETH (EIP-3009 is gasless for the payer; the facilitator broadcasts).
 - **You need a Base-mainnet wallet you control** as `PAY_TO_ADDRESS` to *receive* USDC.
-  The current testnet address is a valid EVM address but you should use one whose key
-  you hold for real funds.
+  This is now set to the founder's self-custody wallet `0xe126…c5c9` (done at cutover).
 
 ## The flip (when you decide)
 1. **Set `PAY_TO_ADDRESS`** to a Base-mainnet wallet you control (edit `wrangler.toml`
