@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import { assess } from "./scoring/assess.js";
 import { parseTarget } from "./scoring/target.js";
 import { D1ReputationRepo } from "./db/repo.js";
+import { D1SettlementStore, paymentIdFromHeaders } from "./db/settlements.js";
 import { createDenylist } from "./db/denylist.js";
 import { createPaymentGate } from "./payments.js";
 import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
@@ -225,8 +226,24 @@ app.post("/v1/check", async (c) => {
   });
 
   // Record the check asynchronously (compounds the dataset, never blocks).
+  // Settlement idempotency: this handler only runs after a payment settled, so
+  // tie the check counter to the settling payment's id and record EXACTLY ONCE
+  // — a replayed proof must not double-count. The id derivation + ledger write
+  // both run in the background so the paid response stays fast.
   if (result.host) {
-    c.executionCtx.waitUntil(repo.recordCheck(result.host));
+    const host = result.host;
+    c.executionCtx.waitUntil(
+      (async () => {
+        const pid = await paymentIdFromHeaders((n) => c.req.header(n));
+        if (pid === null) {
+          // No payment header (e.g. local/ungated invocation): record directly.
+          await repo.recordCheck(host);
+          return;
+        }
+        const fresh = await new D1SettlementStore(c.env.DB).markIfNew(pid, host);
+        if (fresh) await repo.recordCheck(host);
+      })(),
+    );
   }
 
   // Paid-tier differentiator: a signed, verifiable attestation the agent can

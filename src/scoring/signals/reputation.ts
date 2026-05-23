@@ -17,10 +17,18 @@ export function reputationSignal(record: ReputationRecord | null): Signal {
 
   const { flags, vouches, checks } = record;
 
+  // Use the reporter-standing-weighted totals when present (the D1 path keeps
+  // them); fall back to raw counts for legacy rows / the in-memory path. The
+  // weighting is what blunts reputation-poisoning: a counter moved by fresh,
+  // low-standing reporters carries less than the same count from established
+  // ones, so it takes proportionally more sybils to force a bad verdict.
+  const flagScore = record.flagWeight ?? flags;
+  const vouchScore = record.vouchWeight ?? vouches;
+
   // Flags dominate: each flag is a strong negative, saturating quickly.
-  const flagPenalty = Math.min(1, flags / 3);
+  const flagPenalty = Math.min(1, flagScore / 3);
   // Vouches provide mild positive evidence.
-  const vouchBonus = Math.min(0.3, vouches / 20);
+  const vouchBonus = Math.min(0.3, vouchScore / 20);
 
   const score = Math.max(0, Math.min(1, 0.6 - flagPenalty + vouchBonus));
 

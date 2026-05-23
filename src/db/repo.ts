@@ -12,6 +12,33 @@ export interface ReportOptions {
 /** A source may move a host's reputation counter at most once per this window. */
 const REPORT_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** Weight floor for a brand-new or anonymous reporting source. */
+const NEW_REPORTER_WEIGHT = 0.3;
+/** Days of sustained reporting a source needs before it reaches full weight. */
+const ESTABLISHED_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Standing weight in (0,1] for a reporting source, from how long it has been
+ * reporting. A first-ever or anonymous source counts at {@link NEW_REPORTER_WEIGHT};
+ * weight ramps linearly to 1.0 once the source has been active for
+ * {@link ESTABLISHED_DAYS}. This is the anti-poisoning lever: spinning up fresh
+ * identities only buys fractional influence, so forcing a bad verdict costs
+ * proportionally more sybils — and sustained over time — than with one reporter.
+ *
+ * @param firstSeenIso  the source's earliest prior report timestamp, or null if
+ *                      it has never reported before (or is anonymous).
+ */
+export function reporterWeight(firstSeenIso: string | null, now: number = Date.now()): number {
+  if (!firstSeenIso) return NEW_REPORTER_WEIGHT;
+  const firstSeenMs = Date.parse(firstSeenIso);
+  if (Number.isNaN(firstSeenMs)) return NEW_REPORTER_WEIGHT;
+  const ageDays = (now - firstSeenMs) / DAY_MS;
+  if (ageDays <= 0) return NEW_REPORTER_WEIGHT;
+  const ramp = Math.min(1, ageDays / ESTABLISHED_DAYS);
+  return Math.min(1, NEW_REPORTER_WEIGHT + (1 - NEW_REPORTER_WEIGHT) * ramp);
+}
+
 /** Aggregate view of the reputation dataset (the compounding moat). */
 export interface RepoStats {
   /** Distinct hosts ever seen. */
@@ -42,6 +69,8 @@ interface Row {
   checks: number;
   flags: number;
   vouches: number;
+  flag_weight: number;
+  vouch_weight: number;
   first_seen: string;
   last_seen: string;
 }
@@ -88,6 +117,7 @@ export class D1ReputationRepo implements ReputationRepo {
   async recordReport(host: string, kind: ReportKind, opts: ReportOptions = {}): Promise<void> {
     const now = new Date().toISOString();
     const column = kind === "flag" ? "flags" : "vouches";
+    const weightColumn = kind === "flag" ? "flag_weight" : "vouch_weight";
     const source = opts.source ?? null;
 
     // De-dup: a given source moves a host's counter at most once per window.
@@ -104,6 +134,18 @@ export class D1ReputationRepo implements ReputationRepo {
       if (dup) countsTowardReputation = false;
     }
 
+    // Weight this report by the source's standing (tenure). Anonymous reports
+    // (no source key) get the new-reporter floor. Computed from the source's
+    // earliest PRIOR report, before this row is inserted.
+    let weight = NEW_REPORTER_WEIGHT;
+    if (countsTowardReputation && source) {
+      const hist = await this.db
+        .prepare("SELECT MIN(created_at) AS first_seen FROM reports WHERE reporter = ?")
+        .bind(source)
+        .first<{ first_seen: string | null }>();
+      weight = reporterWeight(hist?.first_seen ?? null);
+    }
+
     const statements = [
       this.db
         .prepare(
@@ -115,13 +157,14 @@ export class D1ReputationRepo implements ReputationRepo {
       statements.push(
         this.db
           .prepare(
-            `INSERT INTO reputation (host, ${column}, first_seen, last_seen)
-             VALUES (?, 1, ?, ?)
+            `INSERT INTO reputation (host, ${column}, ${weightColumn}, first_seen, last_seen)
+             VALUES (?, 1, ?, ?, ?)
              ON CONFLICT(host) DO UPDATE SET
                ${column} = ${column} + 1,
+               ${weightColumn} = ${weightColumn} + excluded.${weightColumn},
                last_seen = excluded.last_seen`,
           )
-          .bind(host, now, now),
+          .bind(host, weight, now, now),
       );
     }
     await this.db.batch(statements);
@@ -131,6 +174,8 @@ export class D1ReputationRepo implements ReputationRepo {
 /** In-memory implementation for tests and local reasoning. */
 export class InMemoryReputationRepo implements ReputationRepo {
   private readonly store = new Map<string, ReputationRecord>();
+  /** Earliest report timestamp (ms) per source, for standing weight. */
+  private readonly reporterFirstSeen = new Map<string, number>();
 
   async get(host: string): Promise<ReputationRecord | null> {
     return this.store.get(host) ?? null;
@@ -141,10 +186,20 @@ export class InMemoryReputationRepo implements ReputationRepo {
     rec.checks += 1;
   }
 
-  async recordReport(host: string, kind: ReportKind, _opts: ReportOptions = {}): Promise<void> {
+  async recordReport(host: string, kind: ReportKind, opts: ReportOptions = {}): Promise<void> {
     const rec = this.upsert(host);
-    if (kind === "flag") rec.flags += 1;
-    else rec.vouches += 1;
+    const source = opts.source;
+    // Compute standing from the source's PRIOR first-seen, then record this one.
+    const priorFirstSeen = source ? this.reporterFirstSeen.get(source) : undefined;
+    const weight = reporterWeight(priorFirstSeen ? new Date(priorFirstSeen).toISOString() : null);
+    if (source && priorFirstSeen === undefined) this.reporterFirstSeen.set(source, Date.now());
+    if (kind === "flag") {
+      rec.flags += 1;
+      rec.flagWeight = (rec.flagWeight ?? 0) + weight;
+    } else {
+      rec.vouches += 1;
+      rec.vouchWeight = (rec.vouchWeight ?? 0) + weight;
+    }
   }
 
   async stats(): Promise<RepoStats> {
@@ -163,7 +218,7 @@ export class InMemoryReputationRepo implements ReputationRepo {
     const now = new Date().toISOString();
     let rec = this.store.get(host);
     if (!rec) {
-      rec = { host, checks: 0, flags: 0, vouches: 0, firstSeen: now, lastSeen: now };
+      rec = { host, checks: 0, flags: 0, vouches: 0, flagWeight: 0, vouchWeight: 0, firstSeen: now, lastSeen: now };
       this.store.set(host, rec);
     }
     rec.lastSeen = now;
@@ -177,6 +232,10 @@ function toRecord(row: Row): ReputationRecord {
     checks: row.checks,
     flags: row.flags,
     vouches: row.vouches,
+    // `?? undefined` so a DB without the weight columns yet (pre-migration)
+    // leaves the signal to fall back to raw counts rather than read 0.
+    flagWeight: row.flag_weight ?? undefined,
+    vouchWeight: row.vouch_weight ?? undefined,
     firstSeen: row.first_seen,
     lastSeen: row.last_seen,
   };
