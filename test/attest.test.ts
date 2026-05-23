@@ -3,9 +3,21 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import app from "../src/index.js";
 import { signAttestation, attestationPublicJwk, verifyAttestation } from "../src/attest.js";
 
+// Workers-native base64 helpers (no Node Buffer — keeps src/test free of Node globals).
+const bytesToB64 = (b: Uint8Array): string => btoa(String.fromCharCode(...b));
+const b64UrlToBytes = (s: string): Uint8Array => {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  return Uint8Array.from(atob(b64 + pad), (c) => c.charCodeAt(0));
+};
+// returns `any`, mirroring JSON.parse, so claim fields stay ergonomically accessible
+const b64UrlToJson = (s: string): any => JSON.parse(new TextDecoder().decode(b64UrlToBytes(s)));
+const bytesEqual = (a: Uint8Array, b: Uint8Array): boolean =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
 // A deterministic 32-byte seed (base64) for tests.
 const seed = ed25519.utils.randomSecretKey();
-const SIGNING_KEY = Buffer.from(seed).toString("base64");
+const SIGNING_KEY = bytesToB64(seed);
 const pubKey = ed25519.getPublicKey(seed);
 
 const execCtx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
@@ -19,7 +31,7 @@ describe("attestation", () => {
     expect(verifyAttestation(jwt.slice(0, -2) + "xx", pubKey)).toBe(false);
     // decode claims
     const [, p] = jwt.split(".");
-    const claims = JSON.parse(Buffer.from(p, "base64url").toString());
+    const claims = b64UrlToJson(p);
     expect(claims).toMatchObject({ iss: "vouch", sub: "stripe.com", score: 93, risk: "low" });
     expect(typeof claims.jti).toBe("string");
   });
@@ -31,7 +43,7 @@ describe("attestation", () => {
   it("sets nbf/exp and rejects an expired attestation (anti-replay)", () => {
     const jwt = signAttestation(SIGNING_KEY, { subject: "stripe.com", score: 93, risk: "low", ttlSeconds: 600 });
     const [, p] = jwt.split(".");
-    const claims = JSON.parse(Buffer.from(p, "base64url").toString());
+    const claims = b64UrlToJson(p);
     expect(claims.exp).toBe(claims.iat + 600);
     expect(claims.nbf).toBe(claims.iat);
     // Valid now; invalid well past exp (beyond clock tolerance).
@@ -49,7 +61,7 @@ describe("attestation", () => {
       target: "https://evil.io/pay",
       audience: "agent-123",
     });
-    const claims = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString());
+    const claims = b64UrlToJson(jwt.split(".")[1]);
     expect(claims.target).toBe("https://evil.io/pay");
     expect(claims.aud).toBe("agent-123");
     expect(verifyAttestation(jwt, pubKey, { audience: "agent-123" })).toBe(true);
@@ -67,8 +79,8 @@ describe("attestation", () => {
     const jwk = attestationPublicJwk(SIGNING_KEY);
     expect(jwk).toMatchObject({ kty: "OKP", crv: "Ed25519", alg: "EdDSA" });
     // jwk.x is the base64url public key
-    const x = Buffer.from(jwk.x.replace(/-/g, "+").replace(/_/g, "/"), "base64");
-    expect(Buffer.from(pubKey).equals(x)).toBe(true);
+    const x = b64UrlToBytes(jwk.x);
+    expect(bytesEqual(pubKey, x)).toBe(true);
   });
 
   it("GET /v1/attestation/pubkey returns the JWK when configured (else 503)", async () => {
