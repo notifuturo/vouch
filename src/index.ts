@@ -47,12 +47,18 @@ const app = new Hono<{ Bindings: Env }>();
 // OPTIONS preflight is answered here directly (204). Agnic merchant headers are
 // emitted only when their env vars are set.
 const CORS_EXPOSE = "PAYMENT-REQUIRED, X-PAYMENT-RESPONSE, PAYMENT-RESPONSE, WWW-Authenticate";
+// Allow both the x402 v1 (X-PAYMENT/PAYMENT) and v2 (Payment-Signature /
+// X-Payment-Signature / X-Payment-Response) request headers, so a browser v2
+// client clears preflight and can send the signature/response headers on its
+// 402 retry. The @x402 middleware reads `payment-signature` and `x-payment`.
+const CORS_ALLOW_HEADERS =
+  "Content-Type, Authorization, X-PAYMENT, PAYMENT, Payment-Signature, X-Payment-Signature, X-Payment-Response";
 app.use("*", async (c, next) => {
   if (c.req.method === "OPTIONS") {
     return c.body(null, 204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-PAYMENT, PAYMENT",
+      "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
       "Access-Control-Max-Age": "86400",
     });
   }

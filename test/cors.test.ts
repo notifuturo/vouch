@@ -25,6 +25,12 @@ describe("CORS", () => {
     );
     expect(res.status).toBeLessThan(300); // 204/200, never 404
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    // Preflight must allow both x402 v1 and v2 payment request headers so a
+    // browser v2 client can send signature/response headers on its 402 retry.
+    const allow = (res.headers.get("access-control-allow-headers") ?? "").toLowerCase();
+    for (const h of ["x-payment", "payment-signature", "x-payment-signature", "x-payment-response"]) {
+      expect(allow).toContain(h);
+    }
   });
 
   it("adds Access-Control-Allow-Origin to normal responses", async () => {
