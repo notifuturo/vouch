@@ -4,24 +4,28 @@
  * What it does:
  *   1. Calls the FREE  `POST /v1/report` endpoint (no payment) for contrast.
  *   2. Calls the PAID  `POST /v1/check`  endpoint. Vouch answers 402, this
- *      client automatically pays USDC on Base Sepolia and retries — all handled
- *      by `@x402/fetch`'s `wrapFetchWithPayment`.
+ *      client automatically pays USDC and retries — all handled by
+ *      `@x402/fetch`'s `wrapFetchWithPayment`.
+ *
+ * Network: defaults to Base Sepolia (testnet) — safe for a LOCAL Vouch instance.
+ * The LIVE service (vouch.futuronoti.workers.dev) is on Base MAINNET; to pay it
+ * set `X402_NETWORK=base`, which spends REAL USDC from a Base-mainnet wallet.
  *
  * Run it (see examples/README.md for the full walkthrough):
  *
- *   PRIVATE_KEY=0xYOUR_BASE_SEPOLIA_TESTNET_KEY \
+ *   PRIVATE_KEY=0xYOUR_TESTNET_KEY \
  *   VOUCH_URL=http://localhost:8787 \
  *   npx tsx examples/buyer.ts https://some-merchant.com
  *
  * SECURITY: the private key is read from the environment only — never hardcode
- * a key, and only ever use a *testnet* key here.
+ * a key. Use a throwaway *testnet* key unless you intentionally set X402_NETWORK=base.
  */
 
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
 import { ExactEvmScheme, toClientEvmSigner } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
-import { baseSepolia } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 
 // Node's `process` without depending on @types/node being installed.
 declare const process: {
@@ -30,8 +34,17 @@ declare const process: {
   exit(code?: number): never;
 };
 
-// Base Sepolia testnet — CAIP-2 form expected by x402 v2.
-const NETWORK = "eip155:84532";
+// Network selection (CAIP-2 form expected by x402 v2). Defaults to Base Sepolia
+// testnet — the safe choice for a local dev instance. The LIVE Vouch service runs
+// on Base MAINNET, so to pay it for real set X402_NETWORK=base (this spends REAL
+// USDC). Must match whatever the server's 402 challenge advertises.
+const NETWORKS = {
+  "base-sepolia": { chain: baseSepolia, caip2: "eip155:84532", label: "Base Sepolia (testnet)" },
+  base: { chain: base, caip2: "eip155:8453", label: "Base mainnet (REAL USDC)" },
+} as const;
+const NETWORK_NAME = (process.env.X402_NETWORK ?? "base-sepolia") as keyof typeof NETWORKS;
+const NET = NETWORKS[NETWORK_NAME] ?? NETWORKS["base-sepolia"];
+const NETWORK = NET.caip2;
 
 /** Print a short, friendly setup guide and exit. */
 function bail(message: string): never {
@@ -63,7 +76,10 @@ async function main(): Promise<void> {
   // we pair it with a public client. `toClientEvmSigner` composes the two into
   // the `ClientEvmSigner` shape that `ExactEvmScheme` expects.
   const account = privateKeyToAccount(privateKey);
-  const publicClient = createPublicClient({ chain: baseSepolia, transport: http() });
+  const publicClient = createPublicClient({ chain: NET.chain, transport: http() });
+  if (NETWORK_NAME === "base") {
+    console.warn("⚠  X402_NETWORK=base — this will spend REAL USDC on Base mainnet.\n");
+  }
 
   const signer = toClientEvmSigner(
     {
@@ -85,7 +101,7 @@ async function main(): Promise<void> {
   console.log(`Vouch buyer agent`);
   console.log(`  endpoint : ${vouchUrl}`);
   console.log(`  payer    : ${account.address}`);
-  console.log(`  network  : Base Sepolia (${NETWORK})`);
+  console.log(`  network  : ${NET.label} (${NETWORK})`);
   console.log(`  target   : ${target}\n`);
 
   // ---- 4. FREE call: submit a community report (no payment) ---------------
@@ -106,7 +122,7 @@ async function main(): Promise<void> {
   }
 
   // ---- 5. PAID call: the trust check (x402 pays + retries under the hood) --
-  console.log("\n→ POST /v1/check    (paid via x402 → USDC on Base Sepolia)");
+  console.log(`\n→ POST /v1/check    (paid via x402 → USDC on ${NET.label})`);
   let checkRes: Response;
   try {
     checkRes = await payingFetch(`${vouchUrl}/v1/check`, {

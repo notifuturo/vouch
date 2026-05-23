@@ -1,8 +1,8 @@
 # Vouch — Distribution & GTM Strategy
 
 Synthesized from market research (May 2026). Vouch = a per-call payment-trust/risk
-API for AI agents (`POST /v1/check`, x402, $0.001 USDC, live on Cloudflare Workers,
-settles via Coinbase CDP, currently Base Sepolia testnet).
+API for AI agents (`POST /v1/check`, x402, **$0.01 USDC, LIVE on Base mainnet**
+(`eip155:8453`), on Cloudflare Workers, settles via Coinbase CDP).
 
 ---
 

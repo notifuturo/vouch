@@ -24,6 +24,11 @@ const payingFetch = wrapFetchWithPayment(globalThis.fetch, client);
 const res = await payingFetch(`${VOUCH_URL}/v1/check`, { method: "POST", ... });
 ```
 
+> **Network note:** this example defaults to **Base Sepolia (testnet)**, which is
+> right for a *local* Vouch instance. The **live** service
+> (`vouch.futuronoti.workers.dev`) runs on **Base mainnet** — to pay it for real,
+> set `X402_NETWORK=base` (spends real USDC). See "Going to mainnet" below.
+
 ## Prerequisites (Base Sepolia testnet)
 
 1. **A throwaway testnet wallet.** Create one and export its private key. Only
@@ -51,7 +56,8 @@ npx tsx examples/buyer.ts https://some-merchant.com
 
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
-| `PRIVATE_KEY` | yes | — | Base Sepolia **testnet** key (`0x`-prefixed; `0x` added if omitted). |
+| `PRIVATE_KEY` | yes | — | Payer key (`0x`-prefixed; `0x` added if omitted). Use a **testnet** key unless you set `X402_NETWORK=base`. |
+| `X402_NETWORK` | no | `base-sepolia` | `base-sepolia` (testnet) or `base` (mainnet, **real USDC**). Must match what the server's 402 advertises. |
 | `VOUCH_URL` | no | `http://localhost:8787` | Your Vouch endpoint (wrangler dev, or a deployed Worker). |
 | CLI arg `[target]` | no | `https://some-merchant.com` | The counterparty to assess. |
 
@@ -95,6 +101,14 @@ Vouch buyer agent
 
 ## Going to mainnet
 
-Flip Vouch's `X402_NETWORK` to `base`, change `NETWORK` in `buyer.ts` to
-`eip155:8453`, and fund the payer wallet with real USDC on Base. Everything else
-stays the same.
+The live Vouch service is **already on Base mainnet**. To pay it from this example,
+just set `X402_NETWORK=base` and use a Base-mainnet wallet funded with real USDC —
+`buyer.ts` picks the chain automatically (no code edit needed). It prints a
+real-USDC warning before paying:
+
+```bash
+PRIVATE_KEY=0xYOUR_MAINNET_KEY \
+X402_NETWORK=base \
+VOUCH_URL=https://vouch.futuronoti.workers.dev \
+npx tsx examples/buyer.ts https://some-merchant.com
+```
