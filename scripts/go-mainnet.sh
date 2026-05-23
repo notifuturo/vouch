@@ -12,8 +12,9 @@ set -euo pipefail
 cat <<'WARN'
 ⚠️  About to deploy Vouch on BASE MAINNET (real USDC).
     - Buyers will pay real USDC; settlement happens on-chain via the CDP facilitator.
-    - PAY_TO_ADDRESS (0x84877c232FB62CBf2028A97828507428cf82dC1a) must be a wallet
-      you control on Base mainnet — change it first if not.
+    - This does NOT change PAY_TO_ADDRESS; payments go to whatever address is
+      set in wrangler.toml [vars]. Confirm it's a Base-mainnet wallet you
+      control (and whose key is securely held) BEFORE running this.
     - Bazaar discovery auto-activates on mainnet (indexes after the first settle).
 WARN
 read -r -p "Type 'MAINNET' to proceed: " confirm

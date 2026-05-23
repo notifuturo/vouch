@@ -1,16 +1,30 @@
 import { describe, it, expect } from "vitest";
 import app from "../src/index.js";
-import { resolveLimiter, clientKey } from "../src/ratelimit.js";
+import { resolveLimiter, clientKey, sourceKey } from "../src/ratelimit.js";
 
 describe("resolveLimiter helper", () => {
-  it("falls back to allow-all when no binding is bound", async () => {
+  it("falls back to allow-all when no binding is bound (read tier)", async () => {
     const { success } = await resolveLimiter(undefined).limit({ key: "x" });
     expect(success).toBe(true);
+  });
+  it("fails CLOSED when no binding is bound on an abuse-controlled route", async () => {
+    const { success } = await resolveLimiter(undefined, { failClosed: true }).limit({ key: "x" });
+    expect(success).toBe(false);
+  });
+  it("uses the bound limiter when present (ignores failClosed)", async () => {
+    const bound = { limit: async () => ({ success: true }) };
+    expect((await resolveLimiter(bound, { failClosed: true }).limit({ key: "x" })).success).toBe(true);
   });
   it("derives a stable client key with anon fallback", () => {
     expect(clientKey("1.2.3.4")).toBe("1.2.3.4");
     expect(clientKey(undefined)).toBe("anon");
     expect(clientKey("")).toBe("anon");
+  });
+  it("derives a stable, non-identical-to-IP source key", () => {
+    expect(sourceKey("1.2.3.4")).toBe(sourceKey("1.2.3.4")); // stable
+    expect(sourceKey("1.2.3.4")).not.toBe(sourceKey("5.6.7.8")); // distinguishes sources
+    expect(sourceKey("1.2.3.4")).not.toBe("1.2.3.4"); // not the raw IP
+    expect(sourceKey(undefined)).toBe(sourceKey(""));
   });
 });
 

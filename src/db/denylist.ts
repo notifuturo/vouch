@@ -1,4 +1,5 @@
 import type { DenylistLookup } from "../scoring/signals/threatFeed.js";
+import { canonicalHost } from "../scoring/target.js";
 
 /**
  * Lazily-hydrated, in-memory denylist sourced from a free threat feed (a plain
@@ -26,8 +27,14 @@ export function createDenylist(feedUrl: string | undefined, ttlMs = 6 * 60 * 60 
       const text = await res.text();
       const next = new Set<string>();
       for (const line of text.split("\n")) {
-        const host = line.trim().toLowerCase();
-        if (host && !host.startsWith("#")) next.add(host);
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        // Support both bare-host feeds AND hosts-file format ("0.0.0.0 host" /
+        // "127.0.0.1<TAB>host", e.g. URLhaus): the host is the last token. We
+        // then canonicalize it identically to caller input so lookups match.
+        const token = trimmed.split(/\s+/).pop() ?? "";
+        const host = canonicalHost(token);
+        if (host) next.add(host);
       }
       hosts = next;
       fetchedAt = Date.now();
@@ -46,6 +53,9 @@ export function createDenylist(feedUrl: string | undefined, ttlMs = 6 * 60 * 60 
       });
       await inflight;
     }
-    return hosts?.has(host) ?? false;
+    // Canonicalize the lookup the same way as ingestion (defensive — callers
+    // already pass parseTarget output, which is canonical).
+    const canon = canonicalHost(host);
+    return canon ? (hosts?.has(canon) ?? false) : false;
   };
 }

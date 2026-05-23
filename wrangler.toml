@@ -19,11 +19,13 @@ X402_FACILITATOR_URL = "https://x402.org/facilitator"
 # Price per /v1/check. Set above the CDP facilitator fee ($0.001/settle after the
 # first 1,000/month) to keep margin. $0.01 = ~90% margin; tune freely.
 PRICE_CHECK_USDC = "0.01"
-# Free threat feed for the `threat_feed` signal. URLhaus host list: plain,
-# newline-delimited bare hostnames with '#' comment lines. Cached + fails open.
+# Free threat feed for the `threat_feed` signal. URLhaus hosts-file format
+# ("127.0.0.1<TAB>host", '#' comment lines). Parsed to bare hosts, cached, fails open.
 THREAT_FEED_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
 # PAY_TO_ADDRESS receives x402 payments. This is a PUBLIC address (safe to
-# commit); the matching private key is never stored here. Testnet wallet for now.
+# commit); the matching private key is never stored here. This is the
+# owner-confirmed Base MAINNET self-custody payout wallet — do NOT change it
+# without confirming the new address and that its private key is securely held.
 PAY_TO_ADDRESS = "0xe126002451d0187058cD03719bBCc0bd1CD9c5c9"
 
 # Agnic monetization registry headers (X-Merchant-* on every response).

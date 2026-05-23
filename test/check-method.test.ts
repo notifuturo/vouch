@@ -21,4 +21,23 @@ describe("/v1/check method + cache headers (PR #414 polish)", () => {
     const res = await app.request("/v1/check", { method: "GET" }, env, execCtx);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
+
+  it("rejects /v1/check look-alikes with 404 (no payable 402 that then 404s)", async () => {
+    for (const path of ["/v1/CHECK", "/v1/check/"]) {
+      const res = await app.request(
+        path,
+        { method: "POST", headers: { "content-type": "application/json" }, body: "{\"target\":\"x.com\"}" },
+        env,
+        execCtx,
+      );
+      expect(res.status).toBe(404);
+    }
+  });
+
+  it("sets baseline security headers", async () => {
+    const res = await app.request("/health", {}, env, execCtx);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(res.headers.get("Strict-Transport-Security")).toContain("max-age=");
+  });
 });

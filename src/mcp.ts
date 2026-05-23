@@ -12,6 +12,8 @@ import type { DenylistLookup } from "./scoring/signals/threatFeed.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 const SERVER_INFO = { name: "vouch", version: "0.1.0" };
+const MAX_BATCH = 20; // cap JSON-RPC batch size to bound D1 fan-out / amplification
+const MAX_TARGET = 255; // mirror the HTTP endpoint's input bound
 
 const TOOLS = [
   {
@@ -54,8 +56,12 @@ export interface McpDeps {
   db: D1Database;
   isDenied: DenylistLookup;
   waitUntil: (p: Promise<unknown>) => void;
-  /** Returns false when the free-tier rate limit is exceeded. */
-  rateLimitOk: () => Promise<boolean>;
+  /** Returns false when the free score-tier rate limit is exceeded. */
+  scoreLimitOk: () => Promise<boolean>;
+  /** Returns false when the (stricter) report rate limit is exceeded. */
+  reportLimitOk: () => Promise<boolean>;
+  /** Opaque per-reporter key for report de-duplication. */
+  source?: string;
 }
 
 interface JsonRpcMessage {
@@ -122,11 +128,11 @@ async function callTool(
   const repo = new D1ReputationRepo(deps.db);
 
   if (name === "vouch_score") {
-    if (!(await deps.rateLimitOk())) {
+    if (!(await deps.scoreLimitOk())) {
       return toolResult(id, "Rate limit exceeded on the free tier. Try again shortly.", undefined, true);
     }
     const target = asString(args.target).trim();
-    if (!target || !parseTarget(target).host) {
+    if (!target || target.length > MAX_TARGET || !parseTarget(target).host) {
       return toolResult(id, "Invalid 'target' — provide a URL or hostname.", undefined, true);
     }
     const result = await assess(target, {
@@ -143,16 +149,20 @@ async function callTool(
   }
 
   if (name === "vouch_report") {
-    if (!(await deps.rateLimitOk())) {
+    if (!(await deps.reportLimitOk())) {
       return toolResult(id, "Rate limit exceeded. Try again shortly.", undefined, true);
     }
-    const { host } = parseTarget(asString(args.target));
+    const targetStr = asString(args.target);
+    if (targetStr.length > MAX_TARGET) {
+      return toolResult(id, `'target' must be at most ${MAX_TARGET} characters.`, undefined, true);
+    }
+    const { host } = parseTarget(targetStr);
     if (!host) return toolResult(id, "Invalid 'target'.", undefined, true);
     if (args.kind !== "flag" && args.kind !== "vouch") {
       return toolResult(id, "'kind' must be 'flag' or 'vouch'.", undefined, true);
     }
     const reason = typeof args.reason === "string" ? args.reason.slice(0, 500) : undefined;
-    deps.waitUntil(repo.recordReport(host, args.kind, reason));
+    deps.waitUntil(repo.recordReport(host, args.kind, { reason, source: deps.source }));
     return toolResult(id, `Recorded ${args.kind} for ${host}.`, { ok: true, host, kind: args.kind });
   }
 
@@ -166,6 +176,9 @@ export async function handleMcpBody(
   deps: McpDeps,
 ): Promise<object | object[] | null> {
   if (Array.isArray(body)) {
+    if (body.length > MAX_BATCH) {
+      return rpcError(null, -32600, `Batch too large (max ${MAX_BATCH} messages).`);
+    }
     const out = (await Promise.all(body.map((m) => handleMcpMessage(m as JsonRpcMessage, deps)))).filter(
       (r): r is object => r !== null,
     );

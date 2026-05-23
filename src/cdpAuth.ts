@@ -59,8 +59,10 @@ function signJwt(apiKeyId: string, seed: Uint8Array, method: string, path: strin
     sub: apiKeyId,
     iss: "cdp",
     uris: [`${method} ${CDP_HOST}${path}`],
-    iat: now,
-    nbf: now,
+    // Backdate iat/nbf a few seconds so small negative clock skew vs. CDP
+    // doesn't reject an otherwise-valid JWT (settlement reliability).
+    iat: now - 5,
+    nbf: now - 5,
     exp: now + 120,
   };
   const signingInput = `${strToB64Url(JSON.stringify(header))}.${strToB64Url(JSON.stringify(claims))}`;

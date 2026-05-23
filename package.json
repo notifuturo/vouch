@@ -13,14 +13,15 @@
     "lint": "tsc --noEmit",
     "db:init": "wrangler d1 execute vouch --local --file=./src/db/schema.sql"
   },
+  "comment": "Payment-critical deps are pinned EXACT (no caret): an unreviewed minor bump in signing/facilitator libs could silently change payment behavior. Bump deliberately + re-run the audit.",
   "dependencies": {
-    "@noble/curves": "^2.2.0",
-    "@x402/core": "^2.12.0",
-    "@x402/evm": "^2.12.0",
-    "@x402/fetch": "^2.12.0",
-    "@x402/hono": "^2.12.0",
-    "hono": "^4.12.21",
-    "viem": "^2.50.4"
+    "@noble/curves": "2.2.0",
+    "@x402/core": "2.12.0",
+    "@x402/evm": "2.12.0",
+    "@x402/fetch": "2.12.0",
+    "@x402/hono": "2.12.0",
+    "hono": "4.12.21",
+    "viem": "2.50.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",

@@ -6,7 +6,7 @@ import { D1ReputationRepo } from "./db/repo.js";
 import { createDenylist } from "./db/denylist.js";
 import { createPaymentGate } from "./payments.js";
 import { buildX402Descriptor, buildMcpToolManifest } from "./discovery.js";
-import { resolveLimiter, clientKey, type Limiter } from "./ratelimit.js";
+import { resolveLimiter, clientKey, sourceKey, type Limiter } from "./ratelimit.js";
 import { landingPage } from "./landing.js";
 import { handleMcpBody, rpcError } from "./mcp.js";
 import { signAttestation, attestationPublicJwk } from "./attest.js";
@@ -63,8 +63,15 @@ app.use("*", async (c, next) => {
     });
   }
   await next();
+  // ACAO:* is intentional — this is a fully PUBLIC, credential-free API (no
+  // cookies/sessions), so there's no cross-origin data to protect. If any
+  // credentialed/cookie flow is ever added, this MUST become a specific origin.
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Expose-Headers", CORS_EXPOSE);
+  // Baseline security headers (the `/` landing page is browser-facing).
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   // Payment challenges/verdicts must never be cached (replay/spend-map safety).
   if (c.req.path.startsWith("/v1/")) c.header("Cache-Control", "no-store");
   const merchant: Record<string, string | undefined> = {
@@ -85,7 +92,17 @@ app.use("*", async (c, next) => {
 // would only gate *future* requests — leaving the first request per isolate
 // unpaid. Invoking the gate directly closes that bypass.
 let gate: MiddlewareHandler | null = null;
-app.use("*", (c, next) => {
+app.use("*", async (c, next) => {
+  // Only the EXACT canonical route is payable. Reject look-alikes
+  // (/v1/CHECK, /v1/check/, //v1/check) here, BEFORE the gate, so they can't
+  // mint a payable 402 that then 404s post-payment (facilitator-quota griefing
+  // + resource.url drift). The x402 matcher is case/slash-insensitive; Hono's
+  // handler is not, hence the mismatch we're closing.
+  const path = c.req.path;
+  const canon = path.replace(/\/+/g, "/").replace(/\/+$/, "").toLowerCase();
+  if (canon.endsWith("/v1/check") && path !== "/v1/check") {
+    return c.json({ error: "Not found. The payable resource is exactly /v1/check." }, 404);
+  }
   gate ??= createPaymentGate({
     network: c.env.X402_NETWORK,
     facilitatorUrl: c.env.X402_FACILITATOR_URL,
@@ -151,13 +168,16 @@ app.post("/mcp", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (body === null) return c.json(rpcError(null, -32700, "Parse error"), 400);
   denylist ??= createDenylist(c.env.THREAT_FEED_URL);
+  const ip = c.req.header("cf-connecting-ip");
   const res = await handleMcpBody(body, {
     db: c.env.DB,
     isDenied: denylist,
     waitUntil: (p) => c.executionCtx.waitUntil(p),
-    rateLimitOk: async () =>
-      (await resolveLimiter(c.env.SCORE_LIMITER).limit({ key: clientKey(c.req.header("cf-connecting-ip")) }))
-        .success,
+    scoreLimitOk: async () =>
+      (await resolveLimiter(c.env.SCORE_LIMITER).limit({ key: clientKey(ip) })).success,
+    reportLimitOk: async () =>
+      (await resolveLimiter(c.env.REPORT_LIMITER, { failClosed: true }).limit({ key: clientKey(ip) })).success,
+    source: sourceKey(ip),
   });
   return res === null ? c.body(null, 202) : c.json(res);
 });
@@ -173,7 +193,6 @@ app.get("/v1/stats", async (c) => {
 // Input bounds (validated at the HTTP boundary; both endpoints are public).
 const MAX_TARGET = 255;
 const MAX_REASON = 500;
-const MAX_REPORTER = 128;
 
 // --- Paid: trust check ---
 // GET is POST-only here; return 405 (not 404) so generic buyer probes learn the method.
@@ -217,6 +236,7 @@ app.post("/v1/check", async (c) => {
       subject: result.host,
       score: result.score,
       risk: result.risk,
+      target: result.target,
     });
     return c.json({ ...result, attestation });
   }
@@ -270,14 +290,17 @@ app.post("/v1/score", async (c) => {
 
 // --- Free: community report ---
 app.post("/v1/report", async (c) => {
-  // Throttle per client IP to blunt reputation-poisoning spam.
-  const limiter = resolveLimiter(c.env.REPORT_LIMITER);
-  const { success } = await limiter.limit({ key: clientKey(c.req.header("cf-connecting-ip")) });
+  // Throttle per client IP to blunt reputation-poisoning spam. Fail CLOSED:
+  // this is an abuse-controlled write path, so a missing limiter binding in
+  // production must deny rather than silently disable throttling.
+  const ip = c.req.header("cf-connecting-ip");
+  const limiter = resolveLimiter(c.env.REPORT_LIMITER, { failClosed: true });
+  const { success } = await limiter.limit({ key: clientKey(ip) });
   if (!success) {
     return c.json({ error: "Rate limit exceeded. Slow down." }, 429);
   }
 
-  type ReportBody = { target?: unknown; kind?: unknown; reason?: unknown; reporter?: unknown };
+  type ReportBody = { target?: unknown; kind?: unknown; reason?: unknown };
   const body = await c.req.json<ReportBody>().catch((): ReportBody => ({}));
 
   const targetStr = typeof body.target === "string" ? body.target : "";
@@ -291,13 +314,12 @@ app.post("/v1/report", async (c) => {
   if (body.kind !== "flag" && body.kind !== "vouch") {
     return c.json({ error: "'kind' must be 'flag' or 'vouch'." }, 400);
   }
-  // Bound free-text fields before they reach D1.
+  // Bound the free-text reason before it reaches D1. The reputation counter is
+  // de-duplicated per source so one reporter can't inflate a host's score.
   const reason = typeof body.reason === "string" ? body.reason.slice(0, MAX_REASON) : undefined;
-  const reporter =
-    typeof body.reporter === "string" ? body.reporter.slice(0, MAX_REPORTER) : undefined;
 
   const repo = new D1ReputationRepo(c.env.DB);
-  await repo.recordReport(host, body.kind, reason, reporter);
+  await repo.recordReport(host, body.kind, { reason, source: sourceKey(ip) });
   return c.json({ ok: true, host, kind: body.kind });
 });
 

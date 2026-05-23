@@ -96,4 +96,22 @@ describe("createDenylist", () => {
     expect(await isDenied("evil.example")).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("parses hosts-file format ('127.0.0.1<TAB>host') — the real URLhaus shape", async () => {
+    const HOSTSFILE = ["# banner", "127.0.0.1\tevil.example", "0.0.0.0 bad-host.test"].join("\n");
+    vi.stubGlobal("fetch", fetchReturning(HOSTSFILE));
+    const isDenied = createDenylist(FEED_URL);
+    expect(await isDenied("evil.example")).toBe(true);
+    expect(await isDenied("bad-host.test")).toBe(true);
+    // The redirect IP prefix must NOT be treated as a denied host.
+    expect(await isDenied("127.0.0.1")).toBe(false);
+  });
+
+  it("matches a denylisted host regardless of representation (canonicalization)", async () => {
+    // Feed lists an IP-literal form; an IP-encoded / trailing-dot lookup matches.
+    vi.stubGlobal("fetch", fetchReturning("127.0.0.1\t0x7f000001\nevil.example"));
+    const isDenied = createDenylist(FEED_URL);
+    expect(await isDenied("2130706433")).toBe(true); // decimal form of 127.0.0.1
+    expect(await isDenied("evil.example.")).toBe(true); // trailing dot
+  });
 });

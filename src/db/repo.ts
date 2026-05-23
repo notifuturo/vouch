@@ -2,6 +2,16 @@ import type { ReputationRecord } from "../types.js";
 
 export type ReportKind = "flag" | "vouch";
 
+export interface ReportOptions {
+  /** Bounded free-text reason (stored for audit). */
+  reason?: string | undefined;
+  /** Opaque per-reporter key (see ratelimit.sourceKey) used for de-duplication. */
+  source?: string | undefined;
+}
+
+/** A source may move a host's reputation counter at most once per this window. */
+const REPORT_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 /** Aggregate view of the reputation dataset (the compounding moat). */
 export interface RepoStats {
   /** Distinct hosts ever seen. */
@@ -19,8 +29,10 @@ export interface ReputationRepo {
   get(host: string): Promise<ReputationRecord | null>;
   /** Record that a check occurred (increments `checks`, upserts the row). */
   recordCheck(host: string): Promise<void>;
-  /** Record a community report and bump the matching counter. */
-  recordReport(host: string, kind: ReportKind, reason?: string, reporter?: string): Promise<void>;
+  /** Record a community report and bump the matching counter — unless `source`
+   *  already reported the same (host, kind) within the de-dup window, in which
+   *  case the report is logged for audit but does not inflate the counter. */
+  recordReport(host: string, kind: ReportKind, opts?: ReportOptions): Promise<void>;
   /** Aggregate totals across the whole dataset. */
   stats(): Promise<RepoStats>;
 }
@@ -73,30 +85,46 @@ export class D1ReputationRepo implements ReputationRepo {
       .run();
   }
 
-  async recordReport(
-    host: string,
-    kind: ReportKind,
-    reason?: string,
-    reporter?: string,
-  ): Promise<void> {
+  async recordReport(host: string, kind: ReportKind, opts: ReportOptions = {}): Promise<void> {
     const now = new Date().toISOString();
     const column = kind === "flag" ? "flags" : "vouches";
-    await this.db.batch([
+    const source = opts.source ?? null;
+
+    // De-dup: a given source moves a host's counter at most once per window.
+    // We still log every report row (append-only audit trail).
+    let countsTowardReputation = true;
+    if (source) {
+      const windowStart = new Date(Date.now() - REPORT_DEDUP_WINDOW_MS).toISOString();
+      const dup = await this.db
+        .prepare(
+          "SELECT 1 FROM reports WHERE host = ? AND kind = ? AND reporter = ? AND created_at >= ? LIMIT 1",
+        )
+        .bind(host, kind, source, windowStart)
+        .first();
+      if (dup) countsTowardReputation = false;
+    }
+
+    const statements = [
       this.db
         .prepare(
           "INSERT INTO reports (host, kind, reason, reporter, created_at) VALUES (?, ?, ?, ?, ?)",
         )
-        .bind(host, kind, reason ?? null, reporter ?? null, now),
-      this.db
-        .prepare(
-          `INSERT INTO reputation (host, ${column}, first_seen, last_seen)
-           VALUES (?, 1, ?, ?)
-           ON CONFLICT(host) DO UPDATE SET
-             ${column} = ${column} + 1,
-             last_seen = excluded.last_seen`,
-        )
-        .bind(host, now, now),
-    ]);
+        .bind(host, kind, opts.reason ?? null, source, now),
+    ];
+    if (countsTowardReputation) {
+      statements.push(
+        this.db
+          .prepare(
+            `INSERT INTO reputation (host, ${column}, first_seen, last_seen)
+             VALUES (?, 1, ?, ?)
+             ON CONFLICT(host) DO UPDATE SET
+               ${column} = ${column} + 1,
+               last_seen = excluded.last_seen`,
+          )
+          .bind(host, now, now),
+      );
+    }
+    await this.db.batch(statements);
   }
 }
 
@@ -113,7 +141,7 @@ export class InMemoryReputationRepo implements ReputationRepo {
     rec.checks += 1;
   }
 
-  async recordReport(host: string, kind: ReportKind): Promise<void> {
+  async recordReport(host: string, kind: ReportKind, _opts: ReportOptions = {}): Promise<void> {
     const rec = this.upsert(host);
     if (kind === "flag") rec.flags += 1;
     else rec.vouches += 1;

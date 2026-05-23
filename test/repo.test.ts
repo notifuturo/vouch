@@ -1,6 +1,56 @@
 import { describe, it, expect } from "vitest";
 import app from "../src/index.js";
-import { InMemoryReputationRepo } from "../src/db/repo.js";
+import { InMemoryReputationRepo, D1ReputationRepo } from "../src/db/repo.js";
+
+describe("D1ReputationRepo.recordReport de-duplication (anti-poisoning)", () => {
+  // Mock D1 that captures batch sizes and can simulate a recent duplicate.
+  function mockDb() {
+    const batches: number[] = [];
+    const sqls: string[][] = [];
+    let dup = false;
+    const db = {
+      prepare(sql: string) {
+        const stmt = {
+          sql,
+          bind() {
+            return stmt;
+          },
+          async first() {
+            return dup ? { 1: 1 } : null;
+          },
+          async run() {
+            return {};
+          },
+        };
+        return stmt;
+      },
+      async batch(stmts: { sql: string }[]) {
+        batches.push(stmts.length);
+        sqls.push(stmts.map((s) => s.sql));
+        return [];
+      },
+    } as unknown as D1Database;
+    return { db, batches, sqls, setDup: (v: boolean) => (dup = v) };
+  }
+
+  it("counts the first report from a source but NOT a repeat within the window", async () => {
+    const m = mockDb();
+    const repo = new D1ReputationRepo(m.db);
+    await repo.recordReport("evil.com", "flag", { source: "src1" }); // first → counts
+    m.setDup(true);
+    await repo.recordReport("evil.com", "flag", { source: "src1" }); // repeat → audit only
+    expect(m.batches).toEqual([2, 1]);
+    expect(m.sqls[0].some((s) => s.includes("reputation"))).toBe(true);
+    expect(m.sqls[1].some((s) => s.includes("reputation"))).toBe(false);
+  });
+
+  it("always counts when no source key is provided", async () => {
+    const m = mockDb();
+    const repo = new D1ReputationRepo(m.db);
+    await repo.recordReport("x.com", "flag", {});
+    expect(m.batches).toEqual([2]);
+  });
+});
 
 describe("InMemoryReputationRepo.stats", () => {
   it("aggregates checks, flags, vouches and distinct host count", async () => {
