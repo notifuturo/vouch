@@ -16,7 +16,7 @@
   "comment": "Payment-critical deps are pinned EXACT (no caret): an unreviewed minor bump in signing/facilitator libs could silently change payment behavior. Bump deliberately + re-run the audit.",
   "dependencies": {
     "@noble/curves": "2.2.0",
-    "@x402/core": "2.13.0",
+    "@x402/core": "2.14.0",
     "@x402/evm": "2.13.0",
     "@x402/fetch": "2.13.0",
     "@x402/hono": "2.13.0",
