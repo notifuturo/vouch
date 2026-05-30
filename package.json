@@ -24,10 +24,10 @@
     "viem": "2.50.4"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260523.1",
+    "@cloudflare/workers-types": "^4.20260530.1",
     "agentic-flow": "^2.0.13",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7",
-    "wrangler": "^4.94.0"
+    "wrangler": "^4.95.0"
   }
 }
