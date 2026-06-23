@@ -9,6 +9,8 @@ CLAUDE.md
 ruvector.db
 ruvector.db-wal
 ruvector.db-shm
+agentdb.rvf
+agentdb.rvf.lock
 *.log
 
 # Node dependencies

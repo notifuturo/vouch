@@ -3,6 +3,11 @@
 Copy-paste content for the remaining $0 distribution steps. Honest about status:
 **LIVE on Base mainnet** (accepts real USDC), open-source (MIT), real MCP server.
 
+> **Status (2026-06-23): first real mainnet settlement is DONE.** A live paid
+> `/v1/check` settled 0.01 USDC on Base (eip155:8453) and returned a signed
+> attestation — so the paid path, the CDP settle, and on-chain discovery are all
+> proven, not theoretical. Every claim below is verified against the live service.
+
 **Canonical facts (reuse everywhere):**
 - Name: **Vouch**
 - One-liner: *Trust/risk score for AI agents before they pay a counterparty.*
@@ -11,12 +16,18 @@ Copy-paste content for the remaining $0 distribution steps. Honest about status:
 - Repo: https://github.com/notifuturo/vouch (MIT)
 - Free: `vouch_score` MCP tool · `POST /v1/score` → `{score, risk}`
 - Paid (x402, **$0.01 USDC on Base mainnet**): `POST /v1/check` → `{score, risk, reasons, signals}` **+ a signed Ed25519 attestation** the agent can keep as verifiable proof it checked before paying
-- Verify attestations: `GET /v1/attestation/pubkey` (Ed25519 JWK)
+- Verify attestations: `GET /v1/attestation/pubkey` (Ed25519 JWK; `x=iFNi9BZ5vVHTvZgX0cq4xKsbNGyZnr3o1i6Dkv7utyE`)
 - Discovery: https://vouch.futuronoti.workers.dev/.well-known/x402
 - Trust signals: free threat feeds (URLhaus), domain heuristics, transport, and a
   community reputation graph with **reporter-standing weighting** (fresh/anonymous
   reporters carry fractional weight → sybil poisoning is costly)
 - Tags: `x402` `ai-agents` `agent-payments` `trust` `fraud` `mcp`
+
+**Live proof points (safe to cite — all from the deployed service):**
+- `POST /v1/score {"target":"https://example.com"}` → `{"score":91,"risk":"low"}`
+- Paid `/v1/check` returns the same plus ordered `reasons`, weighted `signals`, and an
+  `attestation` JWT (alg EdDSA) verifiable against the pubkey above.
+- `GET /.well-known/x402` → 200; `POST /mcp` (JSON-RPC `tools/list`) lists `vouch_score` + `vouch_report`.
 
 ---
 
@@ -49,9 +60,11 @@ Smithery account/API key). It can also auto-ingest from the official MCP registr
 Use the **Submit** button (or open a GitHub issue). Same name/description/URL/repo.
 
 ## 4. x402scan (x402scan.com / Merit-Systems) — auto-indexes on on-chain activity
-No manual submit needed. Now that Vouch is on **Base mainnet**, it appears here
-**once the first payment settles on-chain**. Trigger it with one real `/v1/check`
-(organic buyer or a ~$0.01 self-bootstrap), then watch the listing populate.
+**No manual submit — and the trigger condition is now MET.** The first mainnet
+payment settled on-chain on **2026-06-23** (0.01 USDC → payout `0xe126…c5c9`,
+payer `0x79fF…0a2E`), which is exactly what x402scan keys off. **Action: just
+monitor** — search "Vouch" / the payTo address `0xe126002451d0187058cD03719bBCc0bd1CD9c5c9`
+on x402scan.com over the next hours/days and confirm the listing populates. No copy needed.
 
 ## 5. Agnic (app.agnic.ai/monetize) — agent monetization listing
 Create/sign in under **futuronoti@gmail.com**, list Vouch as a monetized agent API,
@@ -82,7 +95,7 @@ Built Vouch: a trust/risk score for AI agents *before* they pay a counterparty.
 • Free vouch_score MCP tool
 • Paid x402 endpoint → full reasons + a signed attestation you can keep as proof
 
-Live on Base mainnet, open-source, in the MCP registry.
+Live on Base mainnet (first payment just settled), open-source, in the MCP registry.
 https://vouch.futuronoti.workers.dev
 #x402 #agenticcommerce
 ```
@@ -98,7 +111,7 @@ agent can decide whether it's safe to pay — before spending money/compute.
 • Paid (x402, $0.01 USDC on Base mainnet): `POST /v1/check` → full explainable
   reasons + signals + a signed Ed25519 attestation (verifiable proof it checked)
 • Real MCP server (Streamable HTTP) at /mcp, listed in the official MCP registry
-• Open-source (MIT). Live on Base mainnet — accepts real USDC.
+• Open-source (MIT). Live on Base mainnet — first real payment just settled on-chain.
 
 Live: https://vouch.futuronoti.workers.dev
 Repo: https://github.com/notifuturo/vouch
@@ -120,7 +133,7 @@ I built Vouch: before an AI agent pays a counterparty, it can call Vouch to get 
 - Real MCP Streamable-HTTP server, in the official MCP registry (io.github.notifuturo/vouch)
 - Signals: free threat feeds (URLhaus), domain heuristics, and a community reputation
   graph with reporter-standing weighting (sybil/poisoning resistance)
-- Open-source (MIT), on Cloudflare Workers. Live on Base mainnet.
+- Open-source (MIT), on Cloudflare Workers. Live on Base mainnet — first payment settled.
 
 Live: https://vouch.futuronoti.workers.dev · Repo: https://github.com/notifuturo/vouch
 
