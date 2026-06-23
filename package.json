@@ -16,12 +16,16 @@
   "comment": "Payment-critical deps are pinned EXACT (no caret): an unreviewed minor bump in signing/facilitator libs could silently change payment behavior. Bump deliberately + re-run the audit.",
   "dependencies": {
     "@noble/curves": "2.2.0",
-    "@x402/core": "2.13.0",
-    "@x402/evm": "2.13.0",
-    "@x402/fetch": "2.13.0",
-    "@x402/hono": "2.13.0",
-    "hono": "4.12.22",
-    "viem": "2.50.4"
+    "@x402/core": "2.16.0",
+    "@x402/evm": "2.16.0",
+    "@x402/fetch": "2.16.0",
+    "@x402/hono": "2.16.0",
+    "hono": "4.12.27",
+    "viem": "2.53.1"
+  },
+  "comment-overrides": "viem still pins ws<=8.20.1 (GHSA-96hv-2xvq-fx4p); ws is the WebSocket transport, never loaded on the HTTP-only Workers runtime. Force the patched ws to clear the audit false-positive. Drop this once viem ships ws>=8.21.0.",
+  "overrides": {
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260523.1",
