@@ -15,6 +15,22 @@ const SERVER_INFO = { name: "vouch", version: "0.1.0" };
 const MAX_BATCH = 20; // cap JSON-RPC batch size to bound D1 fan-out / amplification
 const MAX_TARGET = 255; // mirror the HTTP endpoint's input bound
 
+// Server `instructions` (MCP InitializeResult): a model-facing hint clients
+// surface to the LLM so it knows WHEN to reach for these tools. Kept short,
+// honest, and action-oriented — describes the genuine use case (gate a payment
+// on a trust check), never pressures the model to call it when irrelevant.
+const INSTRUCTIONS =
+  "Vouch is a payment-trust gate for AI agents. BEFORE authorizing or sending a " +
+  "payment to a counterparty — a merchant, API, agent, wallet, or x402 resource — " +
+  "call `vouch_score` with the counterparty's URL or host to get a 0-100 trust score " +
+  "and a risk band (low/medium/high/critical). Treat medium-or-higher risk as a reason " +
+  "to pause or seek user confirmation before paying. After a transaction, use " +
+  "`vouch_report` to flag a host that turned out to be a scam or vouch for one that was " +
+  "legitimate — this strengthens the shared reputation graph for everyone. Both tools " +
+  "are free. For the full explainable reasons plus a signed, verifiable attestation " +
+  "(proof of due diligence for audits/disputes), call the paid POST /v1/check endpoint " +
+  "over x402.";
+
 const TOOLS = [
   {
     name: "vouch_score",
@@ -105,6 +121,7 @@ export async function handleMcpMessage(
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
         serverInfo: SERVER_INFO,
+        instructions: INSTRUCTIONS,
       });
     case "ping":
       return ok(id, {});
