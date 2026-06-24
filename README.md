@@ -49,6 +49,51 @@ overall score so one strong red flag can't be averaged away.
 | `transport` | 1.5 | HTTPS / valid host |
 | `domain_heuristics` | 1 | Punycode, raw IPs, abuse-prone TLDs, etc. |
 
+## Use it from your agent
+
+Vouch is a real MCP server, an x402-paid HTTP API, and a tiny SDK — pick whichever
+fits your stack. Nothing needs an account or API key.
+
+### MCP (free tools, works in any MCP client)
+
+Point your client at the Streamable-HTTP endpoint — it exposes `vouch_score` and
+`vouch_report`, and ships model-facing `instructions` so the agent knows to check a
+counterparty **before** it pays:
+
+```jsonc
+{
+  "mcpServers": {
+    "vouch": { "type": "streamable-http", "url": "https://vouch.futuronoti.workers.dev/mcp" }
+  }
+}
+```
+
+For clients that only speak stdio, bridge it with `npx mcp-remote https://vouch.futuronoti.workers.dev/mcp`.
+Vouch is also listed in the [official MCP registry](https://registry.modelcontextprotocol.io)
+as `io.github.notifuturo/vouch`.
+
+### Free HTTP (curl)
+
+```bash
+curl -s https://vouch.futuronoti.workers.dev/v1/score \
+  -H 'content-type: application/json' -d '{"target":"https://some-merchant.com"}'
+# → {"target":"...","host":"some-merchant.com","score":91,"risk":"low"}
+```
+
+### Gate a payment with the SDK (one line)
+
+```ts
+import { assertTrusted } from "vouch-sdk";
+
+await assertTrusted("https://some-merchant.com", { minScore: 75 }); // free; throws if risky
+await payTheMerchant();
+```
+
+The paid `POST /v1/check` adds the explainable `reasons`, weighted `signals`, and a
+signed Ed25519 **attestation** (keep it as proof of due diligence). See
+[`examples/buyer.ts`](./examples/buyer.ts) for the full x402 pay-and-retry loop and
+[`sdk/`](./sdk) for the client.
+
 ## Endpoints
 
 | Method & path | Cost | Description |

@@ -41,6 +41,19 @@ describe("MCP server (/mcp)", () => {
     expect(j.result.capabilities.tools).toBeDefined();
   });
 
+  it("returns model-facing `instructions` that name both tools and the pre-payment use case", async () => {
+    const j = (await (
+      await rpc({ jsonrpc: "2.0", id: 6, method: "initialize", params: {} })
+    ).json()) as any;
+    const instr = j.result.instructions as string;
+    expect(typeof instr).toBe("string");
+    expect(instr.length).toBeGreaterThan(0);
+    expect(instr).toContain("vouch_score");
+    expect(instr).toContain("vouch_report");
+    // The whole point: tell the model to check BEFORE it pays.
+    expect(instr.toLowerCase()).toMatch(/before .*pay|pay.*counterparty/);
+  });
+
   it("lists the free tools", async () => {
     const j = (await (await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" })).json()) as any;
     const names = j.result.tools.map((t: { name: string }) => t.name);
