@@ -3,23 +3,38 @@ import app from "../src/index.js";
 import { InMemoryReputationRepo, D1ReputationRepo } from "../src/db/repo.js";
 
 describe("D1ReputationRepo.recordReport de-duplication (anti-poisoning)", () => {
-  // Mock D1 that captures batch sizes and can simulate a recent duplicate.
-  function mockDb() {
+  // Faithful mock of the report_dedup conditional UPSERT: a single-writer store
+  // that claims (reporter, host, kind) atomically and reports changes=1 only on
+  // a fresh claim (new row, or prior claim older than the window). The dedup
+  // run() body mutates state synchronously (no internal await) so concurrent
+  // recordReport calls serialize through it — mirroring SQLite's single writer.
+  function mockDb({ windowMs = 24 * 60 * 60 * 1000 } = {}) {
+    const claimed = new Map<string, number>(); // reporter|host|kind -> last_counted_at
     const batches: number[] = [];
     const sqls: string[][] = [];
-    let dup = false;
     const db = {
       prepare(sql: string) {
+        let args: unknown[] = [];
         const stmt = {
           sql,
-          bind() {
+          bind(...a: unknown[]) {
+            args = a;
             return stmt;
           },
           async first() {
-            return dup ? { 1: 1 } : null;
+            // The standing-weight query: no prior reports → floor weight.
+            return { first_seen: null };
           },
           async run() {
-            return {};
+            if (sql.includes("report_dedup")) {
+              const [reporter, host, kind, nowMs] = args as [string, string, string, number];
+              const key = `${reporter}|${host}|${kind}`;
+              const last = claimed.get(key);
+              const fresh = last === undefined || nowMs - last >= windowMs;
+              if (fresh) claimed.set(key, nowMs);
+              return { meta: { changes: fresh ? 1 : 0 } };
+            }
+            return { meta: { changes: 1 } };
           },
         };
         return stmt;
@@ -30,14 +45,13 @@ describe("D1ReputationRepo.recordReport de-duplication (anti-poisoning)", () => 
         return [];
       },
     } as unknown as D1Database;
-    return { db, batches, sqls, setDup: (v: boolean) => (dup = v) };
+    return { db, batches, sqls };
   }
 
   it("counts the first report from a source but NOT a repeat within the window", async () => {
     const m = mockDb();
     const repo = new D1ReputationRepo(m.db);
     await repo.recordReport("evil.com", "flag", { source: "src1" }); // first → counts
-    m.setDup(true);
     await repo.recordReport("evil.com", "flag", { source: "src1" }); // repeat → audit only
     expect(m.batches).toEqual([2, 1]);
     expect(m.sqls[0].some((s) => s.includes("reputation"))).toBe(true);
@@ -49,6 +63,20 @@ describe("D1ReputationRepo.recordReport de-duplication (anti-poisoning)", () => 
     const repo = new D1ReputationRepo(m.db);
     await repo.recordReport("x.com", "flag", {});
     expect(m.batches).toEqual([2]);
+  });
+
+  it("counts EXACTLY ONCE under a concurrent burst from one source (no TOCTOU)", async () => {
+    const m = mockDb();
+    const repo = new D1ReputationRepo(m.db);
+    // 25 simultaneous identical reports — the old read-then-write let many of
+    // these slip past the de-dup; the atomic claim lets exactly one count.
+    await Promise.all(
+      Array.from({ length: 25 }, () => repo.recordReport("evil.com", "flag", { source: "spammer" })),
+    );
+    const counted = m.sqls.filter((stmts) => stmts.some((s) => s.includes("reputation"))).length;
+    expect(counted).toBe(1);
+    // Every attempt is still logged to the append-only audit trail.
+    expect(m.batches).toHaveLength(25);
   });
 });
 
