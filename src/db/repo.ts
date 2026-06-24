@@ -121,17 +121,26 @@ export class D1ReputationRepo implements ReputationRepo {
     const source = opts.source ?? null;
 
     // De-dup: a given source moves a host's counter at most once per window.
-    // We still log every report row (append-only audit trail).
+    // Claim the (reporter, host, kind) slot with a single conditional UPSERT so
+    // the decision is ATOMIC — SQLite's single writer serializes it, so two
+    // concurrent reports from one source can't both count (a read-then-write
+    // check could). `changes === 1` means we claimed it (new row, or the prior
+    // claim is older than the window); 0 means a duplicate inside the window.
+    // Anonymous reports (no source) have no identity to de-dup on, so they
+    // always count. We still log every report row (append-only audit trail).
     let countsTowardReputation = true;
     if (source) {
-      const windowStart = new Date(Date.now() - REPORT_DEDUP_WINDOW_MS).toISOString();
-      const dup = await this.db
+      const res = await this.db
         .prepare(
-          "SELECT 1 FROM reports WHERE host = ? AND kind = ? AND reporter = ? AND created_at >= ? LIMIT 1",
+          `INSERT INTO report_dedup (reporter, host, kind, last_counted_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(reporter, host, kind) DO UPDATE SET
+             last_counted_at = excluded.last_counted_at
+             WHERE excluded.last_counted_at - report_dedup.last_counted_at >= ?`,
         )
-        .bind(host, kind, source, windowStart)
-        .first();
-      if (dup) countsTowardReputation = false;
+        .bind(source, host, kind, Date.now(), REPORT_DEDUP_WINDOW_MS)
+        .run();
+      countsTowardReputation = (res.meta?.changes ?? 0) === 1;
     }
 
     // Weight this report by the source's standing (tenure). Anonymous reports
@@ -176,6 +185,9 @@ export class InMemoryReputationRepo implements ReputationRepo {
   private readonly store = new Map<string, ReputationRecord>();
   /** Earliest report timestamp (ms) per source, for standing weight. */
   private readonly reporterFirstSeen = new Map<string, number>();
+  /** Last time `reporter|host|kind` moved the counter (ms), for de-dup parity
+   *  with D1's report_dedup ledger. */
+  private readonly dedup = new Map<string, number>();
 
   async get(host: string): Promise<ReputationRecord | null> {
     return this.store.get(host) ?? null;
@@ -189,6 +201,16 @@ export class InMemoryReputationRepo implements ReputationRepo {
   async recordReport(host: string, kind: ReportKind, opts: ReportOptions = {}): Promise<void> {
     const rec = this.upsert(host);
     const source = opts.source;
+    // De-dup parity with D1: a source moves a host's counter at most once per
+    // window. Anonymous reports (no source) always count. The host row is still
+    // upserted above (it mirrors recording the audit/last_seen).
+    if (source) {
+      const key = `${source}|${host}|${kind}`;
+      const last = this.dedup.get(key);
+      const nowMs = Date.now();
+      if (last !== undefined && nowMs - last < REPORT_DEDUP_WINDOW_MS) return;
+      this.dedup.set(key, nowMs);
+    }
     // Compute standing from the source's PRIOR first-seen, then record this one.
     const priorFirstSeen = source ? this.reporterFirstSeen.get(source) : undefined;
     const weight = reporterWeight(priorFirstSeen ? new Date(priorFirstSeen).toISOString() : null);

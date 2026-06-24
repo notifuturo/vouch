@@ -34,3 +34,15 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reports_host ON reports (host);
+
+-- Per-source de-dup ledger: one row per (reporter, host, kind), claimed by an
+-- atomic conditional UPSERT so a source moves a host's counter at most once per
+-- rolling window even under concurrent reports (no TOCTOU). See repo.ts.
+-- last_counted_at is epoch ms.
+CREATE TABLE IF NOT EXISTS report_dedup (
+  reporter        TEXT NOT NULL,
+  host            TEXT NOT NULL,
+  kind            TEXT NOT NULL CHECK (kind IN ('flag', 'vouch')),
+  last_counted_at INTEGER NOT NULL,
+  PRIMARY KEY (reporter, host, kind)
+);
