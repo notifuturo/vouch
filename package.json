@@ -21,7 +21,7 @@
     "@x402/fetch": "2.16.0",
     "@x402/hono": "2.16.0",
     "hono": "4.12.27",
-    "viem": "2.53.1"
+    "viem": "2.54.3"
   },
   "comment-overrides": "viem still pins ws<=8.20.1 (GHSA-96hv-2xvq-fx4p); ws is the WebSocket transport, never loaded on the HTTP-only Workers runtime. Force the patched ws to clear the audit false-positive. Drop this once viem ships ws>=8.21.0.",
   "overrides": {
