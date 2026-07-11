@@ -28,10 +28,10 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260623.1",
-    "agentic-flow": "^2.0.13",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9",
-    "wrangler": "^4.104.0"
+    "@cloudflare/workers-types": "^5.20260711.1",
+    "agentic-flow": "^2.1.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.110.0"
   }
 }
